@@ -1,0 +1,356 @@
+---
+title: 'Pizza Slice'
+description: 'Redux slice for managing pizza catalog and filters'
+---
+
+## Overview
+
+The pizza slice manages the pizza catalog, filtering, and sorting functionality. It handles both pre-loaded pizzas from JSON data and custom user-created pizzas, persisting filters and custom pizzas to localStorage.
+
+## State Shape
+
+```typescript
+interface PizzaState {
+  pizzas: Pizza[];
+  filters: PizzaFilters;
+  loading: boolean;
+  error: string | null;
+}
+```
+
+<ResponseField name="pizzas" type="Pizza[]" required>
+  Array of all available pizzas, including both default catalog pizzas and custom user-created pizzas.
+</ResponseField>
+
+<ResponseField name="filters" type="PizzaFilters" required>
+  Current filter settings applied to the pizza catalog.
+  
+  <ResponseField name="search" type="string" required>
+    Search query for filtering pizzas by name or ingredients.
+  </ResponseField>
+  
+  <ResponseField name="category" type="string" required>
+    Selected category filter (e.g., 'all', 'Vegetarian', 'Meat', 'Seafood', 'Spicy').
+  </ResponseField>
+  
+  <ResponseField name="maxPrice" type="number" required>
+    Maximum price filter. Defaults to 50 and is enforced to be at least 50 to prevent hiding new pizzas.
+  </ResponseField>
+  
+  <ResponseField name="sortBy" type="SortOption" required>
+    Current sort order. One of: 'name-asc', 'name-desc', 'price-asc', 'price-desc'.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="loading" type="boolean" required>
+  Loading state indicator.
+</ResponseField>
+
+<ResponseField name="error" type="string | null" required>
+  Error message if any operation fails, otherwise null.
+</ResponseField>
+
+## Initial State
+
+The initial state is hydrated from localStorage and JSON data:
+
+```typescript
+{
+  pizzas: [...pizzasData, ...loadCustomPizzas()],
+  filters: {
+    search: '',
+    category: 'all',
+    maxPrice: 50,
+    sortBy: 'name-asc'
+  },
+  loading: false,
+  error: null
+}
+```
+
+### Persistence
+
+- **Custom pizzas**: Stored in `localStorage` under key `custom_pizzas`
+- **Filters**: Stored in `localStorage` under key `pizza_filters`
+- Filters are automatically loaded on initialization and validated (maxPrice enforced to minimum of 50)
+
+## Actions
+
+### setSearch
+
+Updates the search filter and persists to localStorage.
+
+```typescript
+setSearch(search: string): void
+```
+
+<ParamField path="search" type="string" required>
+  Search query string to filter pizzas by name or ingredients.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { setSearch } from './store/pizzaSlice';
+
+const SearchBar = () => {
+  const dispatch = useDispatch();
+  
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setSearch(e.target.value));
+  };
+  
+  return <input onChange={handleSearch} placeholder="Search pizzas..." />;
+};
+```
+
+**Side Effects:**
+- Updates `state.filters.search`
+- Persists entire filters object to `localStorage.pizza_filters`
+
+---
+
+### setCategory
+
+Updates the category filter and persists to localStorage.
+
+```typescript
+setCategory(category: string): void
+```
+
+<ParamField path="category" type="string" required>
+  Category to filter by. Typically 'all', 'Vegetarian', 'Meat', 'Seafood', or 'Spicy'.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { setCategory } from './store/pizzaSlice';
+
+const CategoryFilter = () => {
+  const dispatch = useDispatch();
+  
+  return (
+    <select onChange={(e) => dispatch(setCategory(e.target.value))}>
+      <option value="all">All Categories</option>
+      <option value="Vegetarian">Vegetarian</option>
+      <option value="Meat">Meat</option>
+      <option value="Seafood">Seafood</option>
+      <option value="Spicy">Spicy</option>
+    </select>
+  );
+};
+```
+
+**Side Effects:**
+- Updates `state.filters.category`
+- Persists entire filters object to `localStorage.pizza_filters`
+
+---
+
+### setMaxPrice
+
+Updates the maximum price filter and persists to localStorage.
+
+```typescript
+setMaxPrice(maxPrice: number): void
+```
+
+<ParamField path="maxPrice" type="number" required>
+  Maximum price threshold for filtering pizzas.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { setMaxPrice } from './store/pizzaSlice';
+
+const PriceFilter = () => {
+  const dispatch = useDispatch();
+  const [price, setPrice] = useState(50);
+  
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number(e.target.value);
+    setPrice(value);
+    dispatch(setMaxPrice(value));
+  };
+  
+  return (
+    <div>
+      <label>Max Price: ${price}</label>
+      <input 
+        type="range" 
+        min="10" 
+        max="100" 
+        value={price}
+        onChange={handlePriceChange}
+      />
+    </div>
+  );
+};
+```
+
+**Side Effects:**
+- Updates `state.filters.maxPrice`
+- Persists entire filters object to `localStorage.pizza_filters`
+- **Note:** On load, maxPrice is enforced to be at least 50 to prevent new pizzas from being hidden
+
+---
+
+### setSortBy
+
+Updates the sort order and persists to localStorage.
+
+```typescript
+setSortBy(sortBy: SortOption): void
+```
+
+<ParamField path="sortBy" type="SortOption" required>
+  Sort option. Must be one of: 'name-asc', 'name-desc', 'price-asc', 'price-desc'.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { setSortBy } from './store/pizzaSlice';
+import type { SortOption } from './types';
+
+const SortDropdown = () => {
+  const dispatch = useDispatch();
+  
+  const handleSort = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    dispatch(setSortBy(e.target.value as SortOption));
+  };
+  
+  return (
+    <select onChange={handleSort}>
+      <option value="name-asc">Name (A-Z)</option>
+      <option value="name-desc">Name (Z-A)</option>
+      <option value="price-asc">Price (Low to High)</option>
+      <option value="price-desc">Price (High to Low)</option>
+    </select>
+  );
+};
+```
+
+**Side Effects:**
+- Updates `state.filters.sortBy`
+- Persists entire filters object to `localStorage.pizza_filters`
+
+---
+
+### addPizzaToCatalog
+
+Adds a new custom pizza to the catalog and persists it to localStorage.
+
+```typescript
+addPizzaToCatalog(pizza: Pizza): void
+```
+
+<ParamField path="pizza" type="Pizza" required>
+  Complete pizza object to add to the catalog. Must include all required Pizza fields.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { addPizzaToCatalog } from './store/pizzaSlice';
+import type { Pizza } from './types';
+
+const CreatePizzaForm = () => {
+  const dispatch = useDispatch();
+  
+  const handleSubmit = (formData: any) => {
+    const newPizza: Pizza = {
+      id: `custom-${Date.now()}`,
+      name: formData.name,
+      price: formData.price,
+      ingredients: formData.ingredients,
+      category: formData.category,
+      imageUrl: formData.imageUrl,
+      isRecommended: false
+    };
+    
+    dispatch(addPizzaToCatalog(newPizza));
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* Form fields */}
+    </form>
+  );
+};
+```
+
+**Side Effects:**
+- Adds pizza to `state.pizzas` array
+- Loads existing custom pizzas from `localStorage.custom_pizzas`
+- Appends new pizza to the array
+- Persists updated custom pizzas array to `localStorage.custom_pizzas`
+
+## Reducer Logic
+
+### Filter Persistence
+
+All filter actions (`setSearch`, `setCategory`, `setMaxPrice`, `setSortBy`) follow the same pattern:
+1. Update the specific filter property in state
+2. Serialize the entire `state.filters` object to JSON
+3. Store in localStorage under key `pizza_filters`
+
+### Custom Pizza Persistence
+
+The `addPizzaToCatalog` action:
+1. Appends the new pizza to `state.pizzas`
+2. Retrieves existing custom pizzas from localStorage
+3. Appends the new pizza to the custom pizzas array
+4. Stores the updated array in localStorage under key `custom_pizzas`
+
+### Filter Loading
+
+On initialization, filters are loaded with validation:
+- Default filters are used if none exist in localStorage
+- `maxPrice` is enforced to be at least 50 using `Math.max()`
+- This prevents new pizzas from being hidden by previously saved low price filters
+
+## Selectors
+
+While not exported from the slice, common selector patterns:
+
+```typescript
+import { RootState } from './store';
+
+// Get all pizzas
+const selectPizzas = (state: RootState) => state.pizza.pizzas;
+
+// Get filters
+const selectFilters = (state: RootState) => state.pizza.filters;
+
+// Get filtered and sorted pizzas (typically in a component or custom selector)
+const selectFilteredPizzas = (state: RootState) => {
+  const { pizzas, filters } = state.pizza;
+  
+  return pizzas
+    .filter(pizza => {
+      const matchesSearch = pizza.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+        pizza.ingredients.some(ing => ing.toLowerCase().includes(filters.search.toLowerCase()));
+      const matchesCategory = filters.category === 'all' || pizza.category === filters.category;
+      const matchesPrice = pizza.price <= filters.maxPrice;
+      
+      return matchesSearch && matchesCategory && matchesPrice;
+    })
+    .sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'name-asc': return a.name.localeCompare(b.name);
+        case 'name-desc': return b.name.localeCompare(a.name);
+        case 'price-asc': return a.price - b.price;
+        case 'price-desc': return b.price - a.price;
+        default: return 0;
+      }
+    });
+};
+```

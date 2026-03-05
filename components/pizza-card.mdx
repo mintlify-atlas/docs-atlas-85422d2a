@@ -1,0 +1,313 @@
+---
+title: PizzaCard Component
+description: Interactive card component for displaying pizza items with add-to-order functionality
+---
+
+## Overview
+
+The `PizzaCard` component is a highly interactive, visually rich card that displays individual pizza items. It provides a seamless user experience for browsing pizzas and adding them to an order, with smooth animations and visual feedback.
+
+**Location**: `src/components/pizza/PizzaCard.tsx`
+
+## Features
+
+- **Click-to-detail navigation**: Card surface navigates to pizza detail page
+- **Quick add-to-order**: Button with success animation feedback
+- **Responsive image display**: Hover effects with scale animation
+- **Badge system**: Displays category and recommendation status
+- **Visual affordances**: Gradient overlays and shadow transitions
+
+## Props
+
+<ParamField path="pizza" type="Pizza" required>
+  The pizza object containing all display and metadata information
+  
+  **Pizza Interface**:
+  ```typescript
+  interface Pizza {
+    id: string;
+    name: string;
+    price: number;
+    ingredients: string[];
+    category: 'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy';
+    imageUrl: string;
+    isRecommended?: boolean;
+  }
+  ```
+</ParamField>
+
+## Usage Example
+
+```tsx
+import PizzaCard from './components/pizza/PizzaCard';
+import type { Pizza } from './types/pizza';
+
+const pizza: Pizza = {
+  id: '1',
+  name: 'Margherita',
+  price: 12.99,
+  ingredients: ['Tomato', 'Mozzarella', 'Basil'],
+  category: 'Vegetarian',
+  imageUrl: '/images/margherita.jpg',
+  isRecommended: true
+};
+
+function PizzaGrid() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <PizzaCard pizza={pizza} />
+    </div>
+  );
+}
+```
+
+## Component Structure
+
+### Image Section
+
+The top section displays the pizza image with overlay badges:
+
+```tsx
+<div className="relative aspect-[4/3] overflow-hidden">
+  <img
+    src={pizza.imageUrl}
+    alt={pizza.name}
+    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+  />
+  
+  {/* Gradient overlay on hover */}
+  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  
+  {/* Badges */}
+  <div className="absolute top-3 left-3 flex flex-col gap-2">
+    {pizza.isRecommended && (
+      <span className="flex items-center gap-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">
+        <Star size={10} fill="currentColor" />
+        RECOMMENDED
+      </span>
+    )}
+    <span className="bg-white/90 backdrop-blur-sm text-gray-800 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">
+      {pizza.category.toUpperCase()}
+    </span>
+  </div>
+</div>
+```
+
+### Content Section
+
+The bottom section contains pizza details and actions:
+
+```tsx
+<div className="p-5 flex flex-col flex-grow">
+  {/* Header with name and price */}
+  <div className="flex justify-between items-start mb-2">
+    <h3 className="text-lg font-bold text-gray-900 leading-tight group-hover:text-orange-600 transition-colors">
+      {pizza.name}
+    </h3>
+    <span className="text-xl font-black text-orange-600">
+      ${pizza.price}
+    </span>
+  </div>
+
+  {/* Ingredients list */}
+  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-grow">
+    {pizza.ingredients.join(', ')}
+  </p>
+
+  {/* Action buttons */}
+  <div className="flex items-center gap-2 mt-auto">
+    {/* Add to order button */}
+    {/* Info button */}
+  </div>
+</div>
+```
+
+## State Management
+
+### Local State
+
+<ParamField path="isAdded" type="boolean">
+  Tracks whether the pizza was recently added to show success feedback. Automatically resets after 2 seconds.
+</ParamField>
+
+```typescript
+const [isAdded, setIsAdded] = useState(false);
+```
+
+### Redux Integration
+
+The component dispatches to the order slice:
+
+```typescript
+import { useAppDispatch } from '../../store/index.ts';
+import { addToOrder } from '../../store/orderSlice.ts';
+
+const dispatch = useAppDispatch();
+
+const handleAddClick = (e: React.MouseEvent) => {
+  e.stopPropagation(); // Prevent card click navigation
+  dispatch(addToOrder({ pizza, quantity: 1 }));
+  setIsAdded(true);
+  setTimeout(() => setIsAdded(false), 2000);
+};
+```
+
+## Navigation
+
+Clicking anywhere on the card (except the buttons) navigates to the pizza detail page:
+
+```typescript
+import { useNavigate } from 'react-router-dom';
+
+const navigate = useNavigate();
+
+<div 
+  onClick={() => navigate(`/pizza/${pizza.id}`)}
+  className="cursor-pointer"
+>
+```
+
+## Button States
+
+### Add to Order Button
+
+The button has two states with different visual presentations:
+
+**Default State**:
+```tsx
+<button className="bg-orange-500 hover:bg-orange-600 text-white">
+  <Plus size={18} />
+  <span className='text-xs font-bold'>Add to Order</span>
+</button>
+```
+
+**Success State** (shown for 2 seconds after adding):
+```tsx
+<button className="bg-green-500 text-white cursor-default" disabled>
+  <CheckCircle size={18} className="animate-bounce" />
+  <span className='text-xs font-bold uppercase'>Added!</span>
+</button>
+```
+
+### Info Button
+
+Provides visual feedback on hover:
+
+```tsx
+<div className="p-2.5 text-gray-400 group-hover:text-orange-500 group-hover:bg-orange-50 bg-gray-50 rounded-xl transition-all">
+  <Info size={20} />
+</div>
+```
+
+## Visual Design
+
+### Hover Effects
+
+1. **Image zoom**: `scale-110` transform on hover
+2. **Gradient overlay**: Fades in from bottom
+3. **Shadow elevation**: `shadow-sm` to `shadow-xl`
+4. **Title color**: Gray to orange transition
+5. **Border highlight**: Transparent to `border-gray-100`
+
+### Aspect Ratio
+
+Images maintain a 4:3 aspect ratio using Tailwind's aspect ratio utility:
+
+```tsx
+<div className="relative aspect-[4/3] overflow-hidden">
+```
+
+### Typography Scale
+
+- Pizza name: `text-lg font-bold`
+- Price: `text-xl font-black`
+- Ingredients: `text-sm text-gray-500`
+- Badges: `text-[10px] font-bold uppercase`
+
+## Accessibility
+
+- **Semantic HTML**: Uses `<button>` for actions
+- **Alt text**: Images include descriptive alt attributes
+- **Keyboard navigation**: All interactive elements are focusable
+- **Disabled state**: Button properly disabled during success animation
+- **Event propagation**: `stopPropagation()` prevents conflicting navigation
+
+## Animation Details
+
+### Image Transform
+
+```css
+transition-transform duration-500 group-hover:scale-110
+```
+
+### Gradient Overlay
+
+```css
+opacity-0 group-hover:opacity-100 transition-opacity duration-300
+```
+
+### Button Feedback
+
+```css
+active:scale-95 transition-all
+```
+
+### Success Icon
+
+```css
+animate-bounce
+```
+
+## Integration Example
+
+Complete example showing multiple cards with filtering:
+
+```tsx
+import { useAppSelector } from './store';
+import PizzaCard from './components/pizza/PizzaCard';
+import PizzaFilters from './components/pizza/PizzaFilters';
+
+function PizzaMenu() {
+  const { pizzas, filters } = useAppSelector((state) => state.pizza);
+  
+  // Apply filters (simplified)
+  const filteredPizzas = pizzas.filter(pizza => {
+    if (filters.category !== 'all' && pizza.category !== filters.category) {
+      return false;
+    }
+    if (pizza.price > filters.maxPrice) {
+      return false;
+    }
+    if (filters.search && !pizza.name.toLowerCase().includes(filters.search.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
+
+  return (
+    <div>
+      <PizzaFilters />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredPizzas.map((pizza) => (
+          <PizzaCard key={pizza.id} pizza={pizza} />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Related Components
+
+<CardGroup cols={2}>
+  <Card title="PizzaFilters" href="/components/pizza-filters" icon="filter">
+    Filter and sort the pizza catalog
+  </Card>
+  <Card title="OrderSummary" href="/components/order-summary" icon="shopping-cart">
+    View and manage items added to order
+  </Card>
+</CardGroup>
+
+## Source Reference
+
+View the complete implementation: `src/components/pizza/PizzaCard.tsx:1-99`

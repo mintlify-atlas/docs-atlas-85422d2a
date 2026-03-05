@@ -1,0 +1,265 @@
+---
+title: Filtering & Search
+description: Advanced filtering, search, and sorting functionality for the pizza catalog
+---
+
+# Filtering & Search
+
+The Pizza Chef Frontend implements a comprehensive filtering and search system that allows users to quickly find pizzas based on multiple criteria. All filter preferences are persisted to localStorage for a seamless user experience across sessions.
+
+## State Management
+
+Filters are managed globally through Redux Toolkit and defined in the `pizzaSlice.ts`:
+
+```typescript
+export interface PizzaFilters {
+  search: string;
+  category: string;
+  maxPrice: number;
+  sortBy: SortOption;
+}
+
+export type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+```
+
+### Default Filter Values
+
+The application initializes with sensible defaults that are loaded from localStorage or fallback to:
+
+```typescript
+const defaults: PizzaFilters = {
+  search: '',
+  category: 'all',
+  maxPrice: 50,
+  sortBy: 'name-asc',
+};
+```
+
+<Note>
+The `maxPrice` filter has special handling: if a saved value is lower than 50, it resets to 50 to ensure new pizzas aren't hidden by default.
+</Note>
+
+## Filter Actions
+
+The Redux slice provides dedicated actions for updating each filter criterion:
+
+```typescript
+setSearch: (state, action: PayloadAction<string>) => {
+  state.filters.search = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+
+setCategory: (state, action: PayloadAction<string>) => {
+  state.filters.category = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+
+setMaxPrice: (state, action: PayloadAction<number>) => {
+  state.filters.maxPrice = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+
+setSortBy: (state, action: PayloadAction<SortOption>) => {
+  state.filters.sortBy = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+```
+
+Each action immediately persists the updated filters to localStorage, ensuring user preferences survive page refreshes.
+
+## Filter Logic Implementation
+
+The actual filtering happens in the `Dashboard.tsx` component:
+
+### Search Filtering
+
+The search filter matches against both pizza names and ingredients:
+
+```typescript
+const searchTerm = filters.search.toLowerCase().trim();
+const matchesSearch = !searchTerm || 
+  pizza.name.toLowerCase().includes(searchTerm) || 
+  pizza.ingredients.some((i: string) => i.toLowerCase().includes(searchTerm));
+```
+
+<Tip>
+The search is case-insensitive and searches both the pizza name and all ingredients, making it easy to find "margherita" or any pizza with "basil".
+</Tip>
+
+### Category Filtering
+
+Available categories include:
+- `all` - Shows all pizzas
+- `Vegetarian`
+- `Meat`
+- `Seafood`
+- `Spicy`
+
+```typescript
+const matchesCategory = filters.category === 'all' || pizza.category === filters.category;
+```
+
+### Price Range Filtering
+
+The price filter uses a slider (0-50) with explicit number conversion for reliability:
+
+```typescript
+const pizzaPrice = Number(pizza.price);
+const maxPrice = Number(filters.maxPrice);
+const matchesPrice = pizzaPrice <= maxPrice;
+```
+
+### Combined Filter Logic
+
+```typescript
+const filteredPizzas = pizzas
+  .filter((pizza: Pizza) => {
+    return matchesSearch && matchesCategory && matchesPrice;
+  })
+```
+
+All three criteria must be satisfied for a pizza to appear in the filtered results.
+
+## Sorting Implementation
+
+After filtering, pizzas are sorted based on the selected option:
+
+```typescript
+.sort((a: Pizza, b: Pizza) => {
+  if (filters.sortBy === 'name-asc') return a.name.localeCompare(b.name);
+  if (filters.sortBy === 'name-desc') return b.name.localeCompare(a.name);
+  const priceA = Number(a.price);
+  const priceB = Number(b.price);
+  if (filters.sortBy === 'price-asc') return priceA - priceB;
+  if (filters.sortBy === 'price-desc') return priceB - priceA;
+  return 0;
+});
+```
+
+### Sort Options
+
+- **A - Z** (`name-asc`): Alphabetical order using `localeCompare`
+- **Z - A** (`name-desc`): Reverse alphabetical order
+- **Price: Low to High** (`price-asc`): Ascending price sort
+- **Price: High to Low** (`price-desc`): Descending price sort
+
+<Note>
+The sorting uses `localeCompare()` for name sorting to properly handle international characters and special characters.
+</Note>
+
+## UI Components
+
+The `PizzaFilters.tsx` component provides the user interface:
+
+### Search Input
+
+```tsx
+<input
+  type="text"
+  placeholder="Search for your favorite pizza..."
+  value={filters.search}
+  onChange={(e) => dispatch(setSearch(e.target.value))}
+/>
+```
+
+### Category Dropdown
+
+```tsx
+<select
+  value={filters.category}
+  onChange={(e) => dispatch(setCategory(e.target.value))}
+>
+  {['all', 'Vegetarian', 'Meat', 'Seafood', 'Spicy'].map((cat) => (
+    <option key={cat} value={cat}>
+      {cat === 'all' ? 'All Categories' : cat}
+    </option>
+  ))}
+</select>
+```
+
+### Price Range Slider
+
+```tsx
+<input
+  type="range"
+  min="0"
+  max="50"
+  step="1"
+  value={filters.maxPrice}
+  onChange={(e) => dispatch(setMaxPrice(Number(e.target.value)))}
+/>
+```
+
+The current max price is displayed in real-time as the user adjusts the slider.
+
+### Sort Dropdown
+
+```tsx
+<select
+  value={filters.sortBy}
+  onChange={(e) => dispatch(setSortBy(e.target.value as SortOption))}
+>
+  <option value="name-asc">A - Z</option>
+  <option value="name-desc">Z - A</option>
+  <option value="price-asc">Price: Low to High</option>
+  <option value="price-desc">Price: High to Low</option>
+</select>
+```
+
+## Performance Considerations
+
+The filter and sort operations run on every render when the filters or pizza catalog changes. For optimal performance:
+
+- Filtering happens before sorting to reduce the sort set size
+- String comparisons use `.toLowerCase()` once per filter cycle
+- Number conversions are explicit to avoid type coercion issues
+
+<Tip>
+For very large catalogs (1000+ items), consider memoizing the filtered results using `useMemo` to avoid unnecessary recalculations.
+</Tip>
+
+## Empty State Handling
+
+When no pizzas match the current filters:
+
+```tsx
+{filteredPizzas.length > 0 ? (
+  // Render pizza cards
+) : (
+  <div className="col-span-full py-24 text-center">
+    <p>No pizzas found with these filters...</p>
+    <p>Try adjusting your search criteria!</p>
+  </div>
+)}
+```
+
+## LocalStorage Keys
+
+- **`pizza_filters`**: Stores the complete filter state as JSON
+
+```json
+{
+  "search": "margherita",
+  "category": "Vegetarian",
+  "maxPrice": 30,
+  "sortBy": "price-asc"
+}
+```
+
+## Integration with Custom Pizzas
+
+Custom pizzas created via the Add Pizza form are automatically included in the filterable catalog:
+
+```typescript
+pizzas: [...pizzasData, ...loadCustomPizzas()] as Pizza[]
+```
+
+The filter system treats custom and default pizzas identically, providing a unified search experience.
+
+## Related Files
+
+- `src/store/pizzaSlice.ts:18-41` - Filter loading and defaults
+- `src/store/pizzaSlice.ts:54-77` - Filter action reducers
+- `src/components/pizza/PizzaFilters.tsx` - Filter UI component
+- `src/pages/Dashboard.tsx:11-34` - Filter and sort logic
+- `src/types/pizza.ts:11-18` - Filter type definitions

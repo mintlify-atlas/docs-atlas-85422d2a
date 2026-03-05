@@ -1,0 +1,674 @@
+---
+title: 'Data Persistence'
+description: 'localStorage persistence strategy, data structures, and synchronization with Redux'
+---
+
+# Data Persistence
+
+The Pizza Chef Frontend uses **localStorage** for client-side data persistence, ensuring user data survives page refreshes and browser sessions. This document details the persistence strategy, localStorage keys, data structures, and synchronization mechanisms.
+
+## Persistence Strategy
+
+The application follows a **synchronous persistence** model:
+
+1. **Write-through**: Data is persisted to localStorage immediately after Redux state updates
+2. **Read-on-mount**: localStorage is read during Redux slice initialization
+3. **Graceful degradation**: Falls back to default values if localStorage is unavailable
+4. **Type safety**: All persisted data is validated on read
+
+### Architecture Diagram
+
+```
+User Action
+    |
+    v
+Redux Dispatch
+    |
+    v
+Reducer Updates State (Immer)
+    |
+    v
+localStorage.setItem() <-- Synchronous write
+    |
+    v
+State Update Complete
+```
+
+**On Page Load:**
+
+```
+App Initialization
+    |
+    v
+Redux Store Creation
+    |
+    v
+Slice initialState Functions
+    |
+    v
+localStorage.getItem() <-- Read persisted data
+    |
+    v
+Parse & Validate JSON
+    |
+    v
+Merge with Defaults
+    |
+    v
+Initial State Ready
+```
+
+## localStorage Keys
+
+The application uses four primary localStorage keys:
+
+| Key | Purpose | Redux Slice | Data Type |
+|-----|---------|-------------|------------|
+| `pizza_current_order` | Active shopping cart | `order.currentOrder` | `OrderItem[]` |
+| `pizza_orders` | Completed order history | `order.orderHistory` | `Order[]` |
+| `custom_pizzas` | User-created pizzas | `pizza.pizzas` | `Pizza[]` |
+| `pizza_filters` | UI filter preferences | `pizza.filters` | `PizzaFilters` |
+
+## Data Structures
+
+### 1. Current Order (`pizza_current_order`)
+
+**Type:** `OrderItem[]`
+
+**Purpose:** Persists the active shopping cart so users don't lose their selections.
+
+**Structure:**
+
+```typescript
+interface OrderItem {
+  pizza: Pizza;                 // Full pizza object
+  quantity: number;             // Number of this pizza in cart
+  originalLinePrice: number;    // pizza.price * quantity
+  discountAmount: number;       // 10% if quantity >= 3, else 0
+  finalLineTotal: number;       // originalLinePrice - discountAmount
+}
+```
+
+**Example localStorage value:**
+
+```json
+[
+  {
+    "pizza": {
+      "id": "margherita-classic",
+      "name": "Margherita Classic",
+      "price": 12.99,
+      "ingredients": ["mozzarella", "tomato", "basil"],
+      "category": "Vegetarian",
+      "imageUrl": "https://example.com/margherita.jpg",
+      "isRecommended": true
+    },
+    "quantity": 3,
+    "originalLinePrice": 38.97,
+    "discountAmount": 3.897,
+    "finalLineTotal": 35.073
+  },
+  {
+    "pizza": {
+      "id": "pepperoni-deluxe",
+      "name": "Pepperoni Deluxe",
+      "price": 15.99,
+      "ingredients": ["mozzarella", "pepperoni", "oregano"],
+      "category": "Meat",
+      "imageUrl": "https://example.com/pepperoni.jpg",
+      "isRecommended": false
+    },
+    "quantity": 1,
+    "originalLinePrice": 15.99,
+    "discountAmount": 0,
+    "finalLineTotal": 15.99
+  }
+]
+```
+
+**Write logic:**
+
+```typescript
+// src/store/orderSlice.ts
+addToOrder: (state, action: PayloadAction<{ pizza: Pizza; quantity: number }>) => {
+  // ... state mutation logic ...
+  localStorage.setItem('pizza_current_order', JSON.stringify(state.currentOrder));
+}
+```
+
+**Read logic:**
+
+```typescript
+const loadCurrentOrder = (): OrderItem[] => {
+  const saved = localStorage.getItem('pizza_current_order');
+  return saved ? JSON.parse(saved) : [];
+};
+
+const initialState: OrderState = {
+  currentOrder: loadCurrentOrder(),
+  // ...
+};
+```
+
+### 2. Order History (`pizza_orders`)
+
+**Type:** `Order[]`
+
+**Purpose:** Stores completed orders for analytics and historical tracking.
+
+**Structure:**
+
+```typescript
+interface Order {
+  id: string;                   // Unique order ID (UUID)
+  items: OrderItem[];           // Array of ordered items
+  subtotal: number;             // Sum of all originalLinePrice
+  totalDiscount: number;        // Sum of all discountAmount
+  finalTotal: number;           // subtotal - totalDiscount
+  timestamp: string;            // ISO 8601 format (e.g., "2026-03-05T14:30:00.000Z")
+}
+```
+
+**Example localStorage value:**
+
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "items": [
+      {
+        "pizza": { /* pizza object */ },
+        "quantity": 3,
+        "originalLinePrice": 38.97,
+        "discountAmount": 3.897,
+        "finalLineTotal": 35.073
+      }
+    ],
+    "subtotal": 38.97,
+    "totalDiscount": 3.897,
+    "finalTotal": 35.073,
+    "timestamp": "2026-03-05T14:30:00.000Z"
+  },
+  {
+    "id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "items": [ /* more items */ ],
+    "subtotal": 67.45,
+    "totalDiscount": 6.745,
+    "finalTotal": 60.705,
+    "timestamp": "2026-03-04T18:15:00.000Z"
+  }
+]
+```
+
+**Write logic:**
+
+```typescript
+// src/store/orderSlice.ts
+addOrderToHistory: (state, action: PayloadAction<Order>) => {
+  state.orderHistory.push(action.payload);
+  state.currentOrder = [];
+  localStorage.setItem('pizza_orders', JSON.stringify(state.orderHistory));
+  localStorage.removeItem('pizza_current_order'); // Clear cart
+}
+```
+
+**Read logic:**
+
+```typescript
+const loadOrderHistory = (): Order[] => {
+  const saved = localStorage.getItem('pizza_orders');
+  return saved ? JSON.parse(saved) : [];
+};
+```
+
+### 3. Custom Pizzas (`custom_pizzas`)
+
+**Type:** `Pizza[]`
+
+**Purpose:** Persists user-created pizzas separate from the default catalog.
+
+**Structure:**
+
+```typescript
+interface Pizza {
+  id: string;                   // Generated with crypto.randomUUID()
+  name: string;
+  price: number;
+  ingredients: string[];
+  category: 'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy';
+  imageUrl: string;
+  isRecommended?: boolean;
+}
+```
+
+**Example localStorage value:**
+
+```json
+[
+  {
+    "id": "custom-123e4567-e89b-12d3-a456-426614174000",
+    "name": "My Custom Deluxe",
+    "price": 18.99,
+    "ingredients": ["mozzarella", "mushrooms", "olives", "peppers"],
+    "category": "Vegetarian",
+    "imageUrl": "https://example.com/custom-pizza.jpg",
+    "isRecommended": false
+  },
+  {
+    "id": "custom-987f6543-a21b-43c5-d678-926514174001",
+    "name": "Spicy Chicken Supreme",
+    "price": 21.50,
+    "ingredients": ["mozzarella", "chicken", "jalapeños", "hot sauce"],
+    "category": "Spicy",
+    "imageUrl": "https://example.com/spicy-chicken.jpg",
+    "isRecommended": true
+  }
+]
+```
+
+**Write logic:**
+
+```typescript
+// src/store/pizzaSlice.ts
+addPizzaToCatalog: (state, action: PayloadAction<Pizza>) => {
+  state.pizzas.push(action.payload);
+  const saved = localStorage.getItem('custom_pizzas');
+  const customPizzas = saved ? JSON.parse(saved) : [];
+  localStorage.setItem('custom_pizzas', JSON.stringify([...customPizzas, action.payload]));
+}
+```
+
+**Read logic:**
+
+```typescript
+const loadCustomPizzas = (): Pizza[] => {
+  const saved = localStorage.getItem('custom_pizzas');
+  return saved ? JSON.parse(saved) : [];
+};
+
+const initialState: PizzaState = {
+  pizzas: [...pizzasData, ...loadCustomPizzas()] as Pizza[],
+  // ...
+};
+```
+
+**Key insight:** Custom pizzas are merged with static pizzas from `pizzas.json` during initialization.
+
+### 4. Filters (`pizza_filters`)
+
+**Type:** `PizzaFilters`
+
+**Purpose:** Remembers user's filter preferences (search, category, price, sort).
+
+**Structure:**
+
+```typescript
+interface PizzaFilters {
+  search: string;               // Search query
+  category: string;             // 'all' | 'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy'
+  maxPrice: number;             // Maximum price filter
+  sortBy: SortOption;           // Sort order
+}
+
+type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+```
+
+**Example localStorage value:**
+
+```json
+{
+  "search": "margherita",
+  "category": "Vegetarian",
+  "maxPrice": 25,
+  "sortBy": "price-asc"
+}
+```
+
+**Write logic:**
+
+```typescript
+// src/store/pizzaSlice.ts
+setSearch: (state, action: PayloadAction<string>) => {
+  state.filters.search = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+
+// Similar for setCategory, setMaxPrice, setSortBy
+```
+
+**Read logic with defaults:**
+
+```typescript
+const loadFilters = (): PizzaFilters => {
+  const saved = localStorage.getItem('pizza_filters');
+  const defaults: PizzaFilters = {
+    search: '',
+    category: 'all',
+    maxPrice: 50,
+    sortBy: 'name-asc',
+  };
+  
+  if (!saved) return defaults;
+  
+  try {
+    const parsed = JSON.parse(saved);
+    return {
+      ...defaults,
+      ...parsed,
+      // Ensure new pizzas aren't hidden by saved maxPrice
+      maxPrice: Math.max(Number(parsed.maxPrice) || 50, 50)
+    };
+  } catch {
+    return defaults;
+  }
+};
+```
+
+**Important:** The `maxPrice` is reset to at least 50 to ensure newly added pizzas aren't accidentally filtered out.
+
+## Synchronization Mechanisms
+
+### Immediate Persistence Pattern
+
+Every Redux action that modifies persisted state writes to localStorage synchronously:
+
+```typescript
+reducerFunction: (state, action) => {
+  // 1. Update Redux state (using Immer)
+  state.someProperty = action.payload;
+  
+  // 2. Immediately persist to localStorage
+  localStorage.setItem('storage_key', JSON.stringify(state.someProperty));
+}
+```
+
+**Benefits:**
+- No data loss on page refresh
+- No need for separate persistence middleware
+- Simple and predictable
+
+**Trade-offs:**
+- Synchronous I/O (minimal performance impact for small data)
+- localStorage size limits (5-10MB per domain)
+
+### Initialization Pattern
+
+Each slice loads persisted data during initialization:
+
+```typescript
+// 1. Define loader function
+const loadFromStorage = (): DataType => {
+  const saved = localStorage.getItem('key');
+  return saved ? JSON.parse(saved) : defaultValue;
+};
+
+// 2. Use in initialState
+const initialState = {
+  property: loadFromStorage(),
+};
+
+// 3. Create slice with initialState
+const slice = createSlice({
+  name: 'sliceName',
+  initialState,
+  reducers: { /* ... */ }
+});
+```
+
+### Error Handling
+
+All localStorage operations are wrapped in error handling:
+
+```typescript
+// Read with fallback
+const loadData = (): DataType => {
+  try {
+    const saved = localStorage.getItem('key');
+    if (!saved) return defaultValue;
+    
+    const parsed = JSON.parse(saved);
+    // Optional: validate parsed data
+    return isValidData(parsed) ? parsed : defaultValue;
+  } catch (error) {
+    console.error('Failed to load from localStorage:', error);
+    return defaultValue;
+  }
+};
+
+// Write with error handling
+const saveData = (data: DataType) => {
+  try {
+    localStorage.setItem('key', JSON.stringify(data));
+  } catch (error) {
+    // Handle quota exceeded or other errors
+    console.error('Failed to save to localStorage:', error);
+    // Could notify user or clear old data
+  }
+};
+```
+
+## Data Migration Strategy
+
+When data structures change, implement migration logic:
+
+```typescript
+const loadFilters = (): PizzaFilters => {
+  const saved = localStorage.getItem('pizza_filters');
+  const defaults: PizzaFilters = {
+    search: '',
+    category: 'all',
+    maxPrice: 50,
+    sortBy: 'name-asc',
+  };
+  
+  if (!saved) return defaults;
+  
+  try {
+    const parsed = JSON.parse(saved);
+    
+    // Migration: handle old data format
+    if (typeof parsed.sortBy === 'string' && !parsed.sortBy.includes('-')) {
+      // Old format: "name" → New format: "name-asc"
+      parsed.sortBy = `${parsed.sortBy}-asc`;
+    }
+    
+    // Merge with defaults for any missing properties
+    return {
+      ...defaults,
+      ...parsed,
+      maxPrice: Math.max(Number(parsed.maxPrice) || 50, 50)
+    };
+  } catch {
+    return defaults;
+  }
+};
+```
+
+## Storage Size Management
+
+### Current Storage Usage
+
+Typical storage usage by key:
+
+- `pizza_current_order`: ~2-5 KB (depends on cart size)
+- `pizza_orders`: ~10-50 KB (grows with order history)
+- `custom_pizzas`: ~5-20 KB (grows with custom pizzas)
+- `pizza_filters`: ~100-200 bytes
+
+**Total:** Typically under 100 KB for normal usage
+
+### Monitoring Storage
+
+```typescript
+function getStorageSize(): { [key: string]: number } {
+  const sizes: { [key: string]: number } = {};
+  
+  for (let key in localStorage) {
+    if (localStorage.hasOwnProperty(key)) {
+      const value = localStorage.getItem(key);
+      sizes[key] = value ? new Blob([value]).size : 0;
+    }
+  }
+  
+  return sizes;
+}
+
+// Usage
+const sizes = getStorageSize();
+console.log('Storage usage:', sizes);
+```
+
+### Quota Management
+
+Handle quota exceeded errors:
+
+```typescript
+function saveToStorage(key: string, data: any) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      // Handle quota exceeded
+      console.error('localStorage quota exceeded');
+      
+      // Strategy: Clear old order history
+      const orders = loadOrderHistory();
+      if (orders.length > 50) {
+        const recentOrders = orders.slice(-50); // Keep last 50
+        localStorage.setItem('pizza_orders', JSON.stringify(recentOrders));
+        
+        // Retry save
+        localStorage.setItem(key, JSON.stringify(data));
+      }
+    } else {
+      throw error;
+    }
+  }
+}
+```
+
+## Privacy & Security
+
+### Data Stored Locally
+
+All data is stored in the user's browser:
+- **No server synchronization**: Data never leaves the device
+- **Domain-specific**: Only accessible by the app's origin
+- **Unencrypted**: localStorage stores plain text
+
+### Best Practices
+
+1. **No sensitive data**: Never store passwords, credit cards, or PII
+2. **User control**: Provide UI to clear all data
+3. **Privacy mode**: Handle private browsing (localStorage may be disabled)
+
+### Clear All Data
+
+```typescript
+function clearAllAppData() {
+  localStorage.removeItem('pizza_current_order');
+  localStorage.removeItem('pizza_orders');
+  localStorage.removeItem('custom_pizzas');
+  localStorage.removeItem('pizza_filters');
+  
+  // Refresh Redux state
+  window.location.reload();
+}
+```
+
+## Testing Persistence
+
+### Unit Tests
+
+```typescript
+import { store } from '../store';
+import { addToOrder } from '../store/orderSlice';
+
+test('persists order to localStorage', () => {
+  const pizza = { id: '1', name: 'Test', price: 10, /* ... */ };
+  
+  store.dispatch(addToOrder({ pizza, quantity: 2 }));
+  
+  const saved = localStorage.getItem('pizza_current_order');
+  expect(saved).toBeTruthy();
+  
+  const parsed = JSON.parse(saved!);
+  expect(parsed).toHaveLength(1);
+  expect(parsed[0].pizza.id).toBe('1');
+  expect(parsed[0].quantity).toBe(2);
+});
+```
+
+### Integration Tests
+
+```typescript
+test('rehydrates state from localStorage', () => {
+  // 1. Seed localStorage
+  const mockOrder = [{ pizza: { /* ... */ }, quantity: 3, /* ... */ }];
+  localStorage.setItem('pizza_current_order', JSON.stringify(mockOrder));
+  
+  // 2. Create new store (simulates page refresh)
+  const { store: newStore } = configureStore({ /* ... */ });
+  
+  // 3. Verify state was rehydrated
+  const state = newStore.getState();
+  expect(state.order.currentOrder).toHaveLength(1);
+  expect(state.order.currentOrder[0].quantity).toBe(3);
+});
+```
+
+## Performance Considerations
+
+### Optimization Strategies
+
+1. **Batch updates**: For multiple changes, update state first, then persist once
+2. **Debounce writes**: For high-frequency updates (e.g., search input)
+3. **Selective persistence**: Only persist changed portions of state
+
+### Debounced Persistence Example
+
+```typescript
+import { debounce } from 'lodash';
+
+const debouncedSave = debounce((filters: PizzaFilters) => {
+  localStorage.setItem('pizza_filters', JSON.stringify(filters));
+}, 500);
+
+setSearch: (state, action: PayloadAction<string>) => {
+  state.filters.search = action.payload;
+  debouncedSave(state.filters); // Wait 500ms before saving
+}
+```
+
+## Browser Compatibility
+
+The application assumes modern browser support:
+
+- **localStorage**: Supported in all modern browsers (IE 8+)
+- **JSON.parse/stringify**: Native support
+- **crypto.randomUUID()**: Modern browsers (polyfill for older browsers)
+
+### Polyfill for Private Browsing
+
+```typescript
+function isLocalStorageAvailable(): boolean {
+  try {
+    const test = '__localStorage_test__';
+    localStorage.setItem(test, test);
+    localStorage.removeItem(test);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Use in-memory fallback if localStorage unavailable
+const storage = isLocalStorageAvailable() 
+  ? localStorage 
+  : new Map(); // In-memory storage
+```
+
+## Next Steps
+
+- [State Management](/architecture/state-management) - Redux implementation details
+- [Architecture Overview](/architecture/overview) - Complete system architecture

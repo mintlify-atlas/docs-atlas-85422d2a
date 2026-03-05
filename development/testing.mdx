@@ -1,0 +1,457 @@
+---
+title: Testing Guide
+description: Write and run tests using Vitest and React Testing Library
+---
+
+## Overview
+
+The Pizza Chef Frontend uses **Vitest** for fast, modern testing with **React Testing Library** for component testing. This guide covers test configuration, writing tests, and running the test suite.
+
+## Testing Stack
+
+The project uses the following testing tools:
+
+- **Vitest** (^4.0.18) - Fast unit test framework with Vite integration
+- **@vitest/ui** (^4.0.18) - Interactive UI for test exploration
+- **@testing-library/react** (^16.3.2) - React component testing utilities
+- **@testing-library/jest-dom** (^6.9.1) - Custom DOM matchers
+- **@testing-library/user-event** (^14.6.1) - User interaction simulation
+- **jsdom** (^28.1.0) - DOM implementation for Node.js
+
+## Test Configuration
+
+### Vitest Configuration
+
+Vitest is configured in `vite.config.ts`:
+
+```typescript vite.config.ts
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react-swc'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+  },
+})
+```
+
+**Configuration breakdown:**
+
+- **`globals: true`**: Enables global test APIs (describe, it, expect) without imports
+- **`environment: 'jsdom'`**: Uses jsdom to simulate a browser environment
+- **`setupFiles`**: Runs setup file before each test file
+
+### Setup File
+
+The `src/setupTests.ts` file configures testing utilities:
+
+```typescript src/setupTests.ts
+import '@testing-library/jest-dom';
+```
+
+This imports custom matchers like:
+- `toBeInTheDocument()`
+- `toHaveTextContent()`
+- `toBeVisible()`
+- `toBeDisabled()`
+
+## Running Tests
+
+### Run All Tests
+
+Execute the entire test suite:
+
+```bash
+npm run test
+```
+
+This command runs Vitest in watch mode, automatically re-running tests when files change.
+
+### Interactive UI Mode
+
+Launch the Vitest UI for visual test exploration:
+
+```bash
+npm run test:ui
+```
+
+The UI provides:
+- Test file explorer
+- Individual test execution
+- Code coverage visualization
+- Test performance metrics
+- Filtering and search capabilities
+
+### Run Tests Once (CI Mode)
+
+For continuous integration, run tests without watch mode:
+
+```bash
+vitest run
+```
+
+### Run Specific Test Files
+
+Run tests matching a pattern:
+
+```bash
+vitest PizzaCard
+```
+
+## Writing Component Tests
+
+### Test File Structure
+
+Component tests are located in `__tests__` directories next to the components:
+
+```
+src/
+├── components/
+│   └── pizza/
+│       ├── PizzaCard.tsx
+│       └── __tests__/
+│           └── PizzaCard.test.tsx
+```
+
+### Component Test Example
+
+Here's a complete example from `src/components/pizza/__tests__/PizzaCard.test.tsx`:
+
+```tsx PizzaCard.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import PizzaCard from '../PizzaCard.tsx';
+import { BrowserRouter } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import pizzaReducer from '../../../store/pizzaSlice.ts';
+import orderReducer from '../../../store/orderSlice.ts';
+import type { Pizza } from '../../../types/index.ts';
+
+const mockPizza: Pizza = {
+  id: '1',
+  name: 'Margherita Test',
+  price: 10,
+  ingredients: ['Tomato', 'Basil'],
+  category: 'Vegetarian',
+  imageUrl: 'test.jpg'
+};
+
+const renderWithProviders = (ui: React.ReactElement) => {
+  const store = configureStore({
+    reducer: {
+      pizza: pizzaReducer,
+      order: orderReducer,
+    },
+  });
+
+  return render(
+    <Provider store={store}>
+      <BrowserRouter>
+        {ui}
+      </BrowserRouter>
+    </Provider>
+  );
+};
+
+describe('PizzaCard Component', () => {
+  it('renders pizza information correctly', () => {
+    renderWithProviders(<PizzaCard pizza={mockPizza} />);
+    
+    expect(screen.getByText('Margherita Test')).toBeInTheDocument();
+    expect(screen.getByText('$10')).toBeInTheDocument();
+    expect(screen.getByText('Tomato, Basil')).toBeInTheDocument();
+  });
+
+  it('navigates to details when clicked', () => {
+    renderWithProviders(<PizzaCard pizza={mockPizza} />);
+    
+    // Check if link-like behavior exists
+    expect(screen.getByText('Margherita Test')).toBeInTheDocument();
+  });
+
+  it('dispatches addToOrder when button clicked', () => {
+     // This would require mocking the dispatch, but let's just make sure the button exists and is clickable
+     renderWithProviders(<PizzaCard pizza={mockPizza} />);
+     const addButton = screen.getByRole('button', { name: /add to order/i });
+     expect(addButton).toBeInTheDocument();
+     fireEvent.click(addButton);
+     
+     // Success state check (should change text to Added!)
+     expect(screen.getByText(/added!/i)).toBeInTheDocument();
+  });
+});
+```
+
+**Key patterns:**
+
+1. **Mock Data**: Define test fixtures that match TypeScript interfaces
+2. **renderWithProviders**: Helper function to wrap components with Redux and Router
+3. **Screen Queries**: Use `screen.getByText()`, `screen.getByRole()` for querying
+4. **User Interactions**: Use `fireEvent` or `@testing-library/user-event`
+5. **Assertions**: Use jest-dom matchers for readable expectations
+
+## Writing Redux Tests
+
+### Store Test Structure
+
+Redux slice tests are located in `src/store/__tests__/`:
+
+```
+src/
+├── store/
+│   ├── orderSlice.ts
+│   └── __tests__/
+│       └── orderSlice.test.ts
+```
+
+### Redux Slice Test Example
+
+Here's the complete test suite from `src/store/__tests__/orderSlice.test.ts`:
+
+```typescript orderSlice.test.ts
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import orderReducer, { addToOrder, removeFromOrder, updateQuantity, clearOrder } from '../orderSlice.ts';
+import type { Pizza } from '../../types/index.ts';
+
+const mockPizza: Pizza = {
+  id: '1',
+  name: 'Margherita',
+  price: 10,
+  ingredients: ['Tomato', 'Mozzarella'],
+  category: 'Vegetarian',
+  imageUrl: 'test.jpg'
+};
+
+describe('orderSlice reducer', () => {
+  beforeEach(() => {    
+    // Clear localStorage before each test
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    });
+  });
+
+  const initialState = {
+    currentOrder: [],
+    orderHistory: [],
+    loading: false,
+  };
+
+  it('should handle adding a pizza to the order', () => {
+    const action = addToOrder({ pizza: mockPizza, quantity: 1 });
+    const newState = orderReducer(initialState, action);
+
+    expect(newState.currentOrder).toHaveLength(1);
+    expect(newState.currentOrder[0].pizza.id).toBe('1');
+    expect(newState.currentOrder[0].quantity).toBe(1);
+    expect(newState.currentOrder[0].originalLinePrice).toBe(10);
+    expect(newState.currentOrder[0].discountAmount).toBe(0);
+  });
+
+  it('should increment quantity if same pizza is added again', () => {
+    const stateWithOne = orderReducer(initialState, addToOrder({ pizza: mockPizza, quantity: 1 }));
+    const newState = orderReducer(stateWithOne, addToOrder({ pizza: mockPizza, quantity: 1 }));
+
+    expect(newState.currentOrder).toHaveLength(1);
+    expect(newState.currentOrder[0].quantity).toBe(2);
+    expect(newState.currentOrder[0].originalLinePrice).toBe(20);
+  });
+
+  it('should apply 10% discount for 3 or more pizzas', () => {
+    const action = addToOrder({ pizza: mockPizza, quantity: 3 });
+    const newState = orderReducer(initialState, action);
+
+    expect(newState.currentOrder[0].quantity).toBe(3);
+    expect(newState.currentOrder[0].originalLinePrice).toBe(30);
+    expect(newState.currentOrder[0].discountAmount).toBe(3); // 10% of 30
+    expect(newState.currentOrder[0].finalLineTotal).toBe(27);
+  });
+
+  it('should handle removing a pizza from the order', () => {
+    const stateWithOne = orderReducer(initialState, addToOrder({ pizza: mockPizza, quantity: 1 }));
+    const newState = orderReducer(stateWithOne, removeFromOrder('1'));
+
+    expect(newState.currentOrder).toHaveLength(0);
+  });
+
+  it('should handle updating quantity and recalculated discounts', () => {
+    const stateWithTwo = orderReducer(initialState, addToOrder({ pizza: mockPizza, quantity: 2 }));
+    
+    // Update to 3 - should trigger discount
+    const stateWithThree = orderReducer(stateWithTwo, updateQuantity({ pizzaId: '1', quantity: 3 }));
+    expect(stateWithThree.currentOrder[0].discountAmount).toBe(3);
+
+    // Update back to 1 - should remove discount
+    const stateWithOne = orderReducer(stateWithThree, updateQuantity({ pizzaId: '1', quantity: 1 }));
+    expect(stateWithOne.currentOrder[0].discountAmount).toBe(0);
+  });
+
+  it('should clear the entire order', () => {
+    const stateWithOne = orderReducer(initialState, addToOrder({ pizza: mockPizza, quantity: 1 }));
+    const newState = orderReducer(stateWithOne, clearOrder());
+
+    expect(newState.currentOrder).toHaveLength(0);
+  });
+});
+```
+
+**Key patterns:**
+
+1. **Mock Dependencies**: Use `vi.stubGlobal()` to mock browser APIs like localStorage
+2. **beforeEach**: Reset mocks and state before each test
+3. **Test Actions**: Dispatch actions and verify state changes
+4. **Business Logic**: Test discount calculations, quantity updates, etc.
+5. **State Transitions**: Verify state changes through multiple actions
+
+## Testing Best Practices
+
+### Query Priority
+
+Use React Testing Library queries in this order:
+
+1. **`getByRole`**: Most accessible (buttons, links, inputs)
+2. **`getByLabelText`**: Form fields with labels
+3. **`getByPlaceholderText`**: Inputs with placeholders
+4. **`getByText`**: Non-interactive text content
+5. **`getByTestId`**: Last resort for dynamic content
+
+### Avoid Implementation Details
+
+Test user behavior, not implementation:
+
+```typescript
+// ❌ Bad - tests implementation
+expect(wrapper.find('.pizza-card')).toHaveLength(1);
+
+// ✅ Good - tests user-visible behavior
+expect(screen.getByText('Margherita Test')).toBeInTheDocument();
+```
+
+### Use User Event for Interactions
+
+For complex interactions, prefer `@testing-library/user-event`:
+
+```typescript
+import userEvent from '@testing-library/user-event';
+
+it('handles form submission', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<CreatePizzaForm />);
+  
+  await user.type(screen.getByLabelText('Pizza Name'), 'Custom Pizza');
+  await user.click(screen.getByRole('button', { name: 'Create' }));
+  
+  expect(screen.getByText('Pizza created!')).toBeInTheDocument();
+});
+```
+
+### Test Accessibility
+
+Ensure components are accessible:
+
+```typescript
+it('has accessible button', () => {
+  renderWithProviders(<PizzaCard pizza={mockPizza} />);
+  
+  const button = screen.getByRole('button', { name: /add to order/i });
+  expect(button).toBeEnabled();
+});
+```
+
+## Coverage Reporting
+
+Generate coverage reports with Vitest:
+
+```bash
+vitest --coverage
+```
+
+This requires installing `@vitest/coverage-v8` or `@vitest/coverage-istanbul`.
+
+## Debugging Tests
+
+### Debug in VS Code
+
+Add breakpoints in your test files and use VS Code's debugger with this configuration:
+
+```json .vscode/launch.json
+{
+  "type": "node",
+  "request": "launch",
+  "name": "Debug Vitest Tests",
+  "runtimeExecutable": "npm",
+  "runtimeArgs": ["run", "test"],
+  "console": "integratedTerminal"
+}
+```
+
+### Use screen.debug()
+
+Inspect the rendered output:
+
+```typescript
+it('renders correctly', () => {
+  renderWithProviders(<PizzaCard pizza={mockPizza} />);
+  screen.debug(); // Prints the DOM tree
+});
+```
+
+## Common Patterns
+
+### Testing Redux Dispatch
+
+```typescript
+it('dispatches action on click', () => {
+  const store = configureStore({
+    reducer: { order: orderReducer },
+  });
+  
+  renderWithProviders(<AddToCartButton pizza={mockPizza} />);
+  fireEvent.click(screen.getByRole('button'));
+  
+  expect(store.getState().order.currentOrder).toHaveLength(1);
+});
+```
+
+### Testing Async Operations
+
+```typescript
+import { waitFor } from '@testing-library/react';
+
+it('loads data asynchronously', async () => {
+  renderWithProviders(<PizzaList />);
+  
+  await waitFor(() => {
+    expect(screen.getByText('Margherita')).toBeInTheDocument();
+  });
+});
+```
+
+### Testing Router Navigation
+
+```typescript
+import { MemoryRouter } from 'react-router-dom';
+
+it('navigates to detail page', () => {
+  render(
+    <MemoryRouter initialEntries={['/pizzas/1']}>
+      <PizzaDetail />
+    </MemoryRouter>
+  );
+  
+  expect(screen.getByText('Pizza Details')).toBeInTheDocument();
+});
+```
+
+## Next Steps
+
+- Review the [Build Process](/development/building) for production deployment
+- Check out [Vitest documentation](https://vitest.dev/) for advanced features
+- Explore [React Testing Library](https://testing-library.com/react) best practices

@@ -1,0 +1,288 @@
+---
+title: 'Architecture Overview'
+description: 'Comprehensive overview of the Pizza Chef Frontend architecture, project structure, and technology stack'
+---
+
+# Architecture Overview
+
+The Pizza Chef Frontend is a modern, high-performance Single Page Application (SPA) built with React 18, TypeScript, and Redux Toolkit. This document provides a comprehensive overview of the application architecture and design decisions.
+
+## Technology Stack
+
+### Core Technologies
+
+- **React 18**: Leverages concurrent features and automatic batching for optimal performance
+- **TypeScript**: Provides type safety and enhanced developer experience
+- **Vite**: Lightning-fast build tool with Hot Module Replacement (HMR)
+
+### State Management
+
+- **Redux Toolkit**: Simplified Redux implementation with built-in best practices
+- **React Redux**: Official React bindings for Redux with typed hooks
+
+### Routing & Navigation
+
+- **React Router DOM v7**: Client-side routing with nested routes and layouts
+
+### UI & Styling
+
+- **Tailwind CSS 4.0**: Utility-first CSS framework with mobile-first design
+- **Lucide React**: Modern icon library with consistent design
+- **Framer Motion**: Production-ready animation library for micro-interactions
+
+### Forms & Validation
+
+- **React Hook Form**: Performant form library with minimal re-renders
+- **Zod**: TypeScript-first schema validation
+
+### Data Visualization
+
+- **Recharts**: Composable charting library built on React components
+
+### Testing
+
+- **Vitest**: Fast unit testing framework compatible with Vite
+- **React Testing Library**: Testing utilities for React components
+- **JSDom**: JavaScript implementation of web standards for testing
+
+## Project Structure
+
+```
+src/
+├── components/         # Reusable React components
+│   └── layout/        # Layout components (header, navigation)
+├── data/              # Static data files
+│   └── pizzas.json   # Default pizza catalog
+├── pages/             # Route-level page components
+│   ├── Dashboard.tsx
+│   ├── PizzaDetails.tsx
+│   ├── AddPizza.tsx
+│   ├── AdminAnalytics.tsx
+│   └── About.tsx
+├── store/             # Redux store and slices
+│   ├── index.ts      # Store configuration
+│   ├── pizzaSlice.ts # Pizza catalog state
+│   └── orderSlice.ts # Order and cart state
+├── types/             # TypeScript type definitions
+│   ├── pizza.ts
+│   ├── order.ts
+│   └── index.ts
+├── App.tsx            # Root component with routing
+├── main.tsx           # Application entry point
+└── index.css          # Global styles and Tailwind imports
+```
+
+## Application Entry Point
+
+The application bootstraps through `main.tsx`, which sets up the Redux Provider and renders the root App component:
+
+```tsx
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { Provider } from 'react-redux'
+import { store } from './store/index.ts'
+import './index.css'
+import App from './App.tsx'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <Provider store={store}>
+      <App />
+    </Provider>
+  </StrictMode>,
+)
+```
+
+### Key Architectural Decisions
+
+1. **StrictMode**: Enabled to highlight potential problems during development
+2. **Redux Provider**: Wraps the entire application to provide global state access
+3. **Type Safety**: Non-null assertion on root element (guaranteed by index.html)
+
+## Data Model
+
+### Pizza Interface
+
+The core data structure representing a pizza in the catalog:
+
+```typescript
+export interface Pizza {
+  id: string;
+  name: string;
+  price: number;
+  ingredients: string[];
+  category: 'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy';
+  imageUrl: string;
+  isRecommended?: boolean;
+}
+```
+
+### Order Item Interface
+
+Represents a pizza in the shopping cart with calculated pricing:
+
+```typescript
+export interface OrderItem {
+  pizza: Pizza;
+  quantity: number;
+  originalLinePrice: number;    // Base price × quantity
+  discountAmount: number;        // Calculated discount (10% for 3+ items)
+  finalLineTotal: number;        // originalLinePrice - discountAmount
+}
+```
+
+### Order Interface
+
+Represents a completed order in the order history:
+
+```typescript
+export interface Order {
+  id: string;
+  items: OrderItem[];
+  subtotal: number;              // Sum of all originalLinePrice
+  totalDiscount: number;         // Sum of all discountAmount
+  finalTotal: number;            // subtotal - totalDiscount
+  timestamp: string;             // ISO 8601 format
+}
+```
+
+## Design Patterns
+
+### Single Source of Truth
+
+Redux serves as the single source of truth for:
+- Pizza catalog (both static and custom pizzas)
+- Current shopping cart
+- Order history
+- UI filters and preferences
+
+### Optimistic UI Updates
+
+All Redux actions use Immer (built into Redux Toolkit) for immutable state updates:
+- State mutations are safe and wrapped in `produce()`
+- No manual object spreading required
+- Prevents common state mutation bugs
+
+### Persistence Strategy
+
+Critical data is automatically persisted to localStorage:
+- **Immediate persistence**: Changes are saved synchronously after each Redux action
+- **Restoration on load**: State is rehydrated from localStorage during initialization
+- **Graceful degradation**: Falls back to defaults if localStorage is unavailable
+
+### Type-Safe Redux Hooks
+
+Custom typed hooks prevent type errors throughout the application:
+
+```typescript
+export const useAppDispatch: () => AppDispatch = useDispatch;
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+```
+
+Components use `useAppDispatch` and `useAppSelector` instead of the base Redux hooks, providing full TypeScript autocomplete and type checking.
+
+## Performance Optimizations
+
+### Code Splitting
+
+React Router DOM automatically code-splits routes, loading page components on demand.
+
+### Redux Toolkit
+
+- **Immer integration**: Efficient immutable updates without excessive copying
+- **DevTools integration**: Time-travel debugging in development
+- **Memoized selectors**: Prevent unnecessary recalculations
+
+### Vite HMR
+
+Hot Module Replacement enables instant updates during development without losing application state.
+
+## Design System
+
+### Glassmorphism Theme
+
+The application uses a modern glassmorphism aesthetic:
+- Semi-transparent white backgrounds (`bg-white/90`, `bg-white/80`)
+- Backdrop blur filters for depth (`backdrop-blur-lg`)
+- Subtle shadows and borders for layering
+- High-quality pizza imagery as visual anchors
+
+### Responsive Design
+
+Tailwind's mobile-first approach ensures the app works seamlessly across devices:
+- Default styles target mobile screens
+- `md:`, `lg:` breakpoints progressively enhance for larger screens
+- Flexible grid layouts adapt to available space
+
+### Animation Philosophy
+
+Framer Motion powers subtle, purposeful animations:
+- **Layout animations**: Smooth transitions when items are added/removed from lists
+- **Micro-interactions**: Feedback on button clicks and cart updates
+- **Page transitions**: Fade-in effects for route changes
+- **Performance-first**: Animations use GPU-accelerated properties (transform, opacity)
+
+## Error Handling
+
+The application implements defensive programming:
+
+1. **localStorage failures**: Try-catch blocks with fallback to defaults
+2. **Type validation**: Zod schemas validate user input before processing
+3. **Route protection**: Layout component ensures valid navigation
+4. **Data validation**: JSON parsing is wrapped in error handlers
+
+## Testing Strategy
+
+### Unit Tests
+
+Vitest runs unit tests for Redux slices, focusing on:
+- Action creators and reducers
+- State calculations (discounts, totals)
+- localStorage persistence logic
+
+### Component Tests
+
+React Testing Library tests component behavior:
+- User interactions (clicks, form submissions)
+- Conditional rendering based on state
+- Integration with Redux store
+
+### Running Tests
+
+```bash
+# Run all tests once
+npm run test
+
+# Interactive UI mode
+npm run test:ui
+```
+
+## Build & Deployment
+
+### Development
+
+```bash
+npm run dev
+```
+
+Starts Vite development server with HMR on `http://localhost:5173`
+
+### Production Build
+
+```bash
+npm run build
+```
+
+Creates an optimized production build in the `dist/` directory:
+- Tree-shaking removes unused code
+- Assets are minified and hashed for cache busting
+- CSS is extracted and optimized
+- Source maps are generated for debugging
+
+## Next Steps
+
+Explore the detailed architecture documentation:
+
+- [State Management](/architecture/state-management) - Deep dive into Redux implementation
+- [Routing](/architecture/routing) - Route configuration and navigation patterns
+- [Data Persistence](/architecture/data-persistence) - localStorage strategy and data structures

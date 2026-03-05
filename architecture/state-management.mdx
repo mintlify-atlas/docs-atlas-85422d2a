@@ -1,0 +1,613 @@
+---
+title: 'State Management'
+description: 'Deep dive into Redux Toolkit implementation, slices, actions, and state shape'
+---
+
+# State Management
+
+The Pizza Chef Frontend uses **Redux Toolkit** for predictable, centralized state management. This document details the implementation, including store configuration, slices, actions, and selectors.
+
+## Store Configuration
+
+The Redux store is configured in `src/store/index.ts`:
+
+```typescript
+import { configureStore } from '@reduxjs/toolkit';
+import { useDispatch, useSelector } from 'react-redux';
+import type { TypedUseSelectorHook } from 'react-redux';
+import pizzaReducer from './pizzaSlice.ts';
+import orderReducer from './orderSlice.ts';
+
+export const store = configureStore({
+  reducer: {
+    pizza: pizzaReducer,
+    order: orderReducer,
+  },
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+export const useAppDispatch: () => AppDispatch = useDispatch;
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+```
+
+### Type-Safe Hooks
+
+The store exports custom typed hooks that provide full TypeScript support:
+
+- **`useAppDispatch`**: Typed version of `useDispatch` with correct action types
+- **`useAppSelector`**: Typed version of `useSelector` with RootState inference
+
+**Usage in components:**
+
+```typescript
+import { useAppDispatch, useAppSelector } from '../store';
+
+function MyComponent() {
+  const dispatch = useAppDispatch(); // Fully typed dispatch
+  const pizzas = useAppSelector(state => state.pizza.pizzas); // Autocomplete!
+  
+  // TypeScript will error if action doesn't exist or has wrong payload
+  dispatch(addToOrder({ pizza: somePizza, quantity: 2 }));
+}
+```
+
+## State Shape
+
+The complete state tree structure:
+
+```typescript
+RootState {
+  pizza: {
+    pizzas: Pizza[];
+    filters: {
+      search: string;
+      category: string;
+      maxPrice: number;
+      sortBy: 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+    };
+    loading: boolean;
+    error: string | null;
+  };
+  order: {
+    currentOrder: OrderItem[];
+    orderHistory: Order[];
+    loading: boolean;
+  };
+}
+```
+
+## Pizza Slice
+
+Manages the pizza catalog and filtering state.
+
+### Initial State
+
+The pizza slice loads data from two sources:
+
+1. **Static catalog**: `pizzas.json` file with default menu
+2. **Custom pizzas**: User-created pizzas from localStorage
+
+```typescript
+const loadCustomPizzas = (): Pizza[] => {
+  const saved = localStorage.getItem('custom_pizzas');
+  return saved ? JSON.parse(saved) : [];
+};
+
+const loadFilters = (): PizzaFilters => {
+  const saved = localStorage.getItem('pizza_filters');
+  const defaults: PizzaFilters = {
+    search: '',
+    category: 'all',
+    maxPrice: 50,
+    sortBy: 'name-asc',
+  };
+  
+  if (!saved) return defaults;
+  
+  try {
+    const parsed = JSON.parse(saved);
+    return {
+      ...defaults,
+      ...parsed,
+      // Ensure new pizzas aren't hidden by saved maxPrice
+      maxPrice: Math.max(Number(parsed.maxPrice) || 50, 50)
+    };
+  } catch {
+    return defaults;
+  }
+};
+
+const initialState: PizzaState = {
+  pizzas: [...pizzasData, ...loadCustomPizzas()] as Pizza[],
+  filters: loadFilters(),
+  loading: false,
+  error: null,
+};
+```
+
+### Actions
+
+#### `setSearch(search: string)`
+
+Updates the search query and persists to localStorage.
+
+```typescript
+setSearch: (state, action: PayloadAction<string>) => {
+  state.filters.search = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+```
+
+**Usage:**
+```typescript
+dispatch(setSearch('margherita'));
+```
+
+#### `setCategory(category: string)`
+
+Filters pizzas by category (Vegetarian, Meat, Seafood, Spicy, or 'all').
+
+```typescript
+setCategory: (state, action: PayloadAction<string>) => {
+  state.filters.category = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+```
+
+**Usage:**
+```typescript
+dispatch(setCategory('Vegetarian'));
+dispatch(setCategory('all')); // Show all categories
+```
+
+#### `setMaxPrice(price: number)`
+
+Sets the maximum price filter.
+
+```typescript
+setMaxPrice: (state, action: PayloadAction<number>) => {
+  state.filters.maxPrice = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+```
+
+**Usage:**
+```typescript
+dispatch(setMaxPrice(25.00));
+```
+
+#### `setSortBy(sortOption: SortOption)`
+
+Changes the sort order for the pizza list.
+
+```typescript
+setSortBy: (state, action: PayloadAction<SortOption>) => {
+  state.filters.sortBy = action.payload;
+  localStorage.setItem('pizza_filters', JSON.stringify(state.filters));
+}
+```
+
+**Valid sort options:**
+- `'name-asc'` - Alphabetical A-Z
+- `'name-desc'` - Alphabetical Z-A
+- `'price-asc'` - Price low to high
+- `'price-desc'` - Price high to low
+
+**Usage:**
+```typescript
+dispatch(setSortBy('price-asc'));
+```
+
+#### `addPizzaToCatalog(pizza: Pizza)`
+
+Adds a custom pizza to the catalog and persists it to localStorage.
+
+```typescript
+addPizzaToCatalog: (state, action: PayloadAction<Pizza>) => {
+  state.pizzas.push(action.payload);
+  const saved = localStorage.getItem('custom_pizzas');
+  const customPizzas = saved ? JSON.parse(saved) : [];
+  localStorage.setItem('custom_pizzas', JSON.stringify([...customPizzas, action.payload]));
+}
+```
+
+**Usage:**
+```typescript
+const newPizza: Pizza = {
+  id: crypto.randomUUID(),
+  name: 'Custom Deluxe',
+  price: 18.99,
+  ingredients: ['mozzarella', 'tomato', 'basil'],
+  category: 'Vegetarian',
+  imageUrl: 'https://example.com/pizza.jpg',
+  isRecommended: false,
+};
+
+dispatch(addPizzaToCatalog(newPizza));
+```
+
+### Exported Actions
+
+```typescript
+export const { 
+  setSearch, 
+  setCategory, 
+  setMaxPrice, 
+  setSortBy, 
+  addPizzaToCatalog 
+} = pizzaSlice.actions;
+```
+
+## Order Slice
+
+Manages the shopping cart (current order) and order history.
+
+### Initial State
+
+The order slice rehydrates from localStorage:
+
+```typescript
+const loadOrderHistory = (): Order[] => {
+  const saved = localStorage.getItem('pizza_orders');
+  return saved ? JSON.parse(saved) : [];
+};
+
+const loadCurrentOrder = (): OrderItem[] => {
+  const saved = localStorage.getItem('pizza_current_order');
+  return saved ? JSON.parse(saved) : [];
+};
+
+const initialState: OrderState = {
+  currentOrder: loadCurrentOrder(),
+  orderHistory: loadOrderHistory(),
+  loading: false,
+};
+```
+
+### Discount Calculation
+
+The order slice includes automatic discount calculation for bulk orders:
+
+```typescript
+const calculateItemTotals = (item: { pizza: Pizza; quantity: number }): OrderItem => {
+  const originalLinePrice = item.pizza.price * item.quantity;
+  let discountAmount = 0;
+
+  // Discount: 10% for 3+ items of the same pizza
+  if (item.quantity >= 3) {
+    discountAmount = originalLinePrice * 0.1;
+  }
+
+  const finalLineTotal = originalLinePrice - discountAmount;
+
+  return {
+    ...item,
+    originalLinePrice,
+    discountAmount,
+    finalLineTotal,
+  };
+};
+```
+
+**Discount rules:**
+- **3+ pizzas** of the same type → **10% discount** on that line item
+- Discounts are calculated per pizza type, not across the entire order
+- Real-time updates in cart and detail views
+
+### Actions
+
+#### `setLoading(loading: boolean)`
+
+Controls the loading state for async operations.
+
+```typescript
+setLoading: (state, action: PayloadAction<boolean>) => {
+  state.loading = action.payload;
+}
+```
+
+#### `addToOrder({ pizza: Pizza, quantity: number })`
+
+Adds a pizza to the cart or updates quantity if already present.
+
+```typescript
+addToOrder: (state, action: PayloadAction<{ pizza: Pizza; quantity: number }>) => {
+  const existingItemIndex = state.currentOrder.findIndex(
+    (item) => item.pizza.id === action.payload.pizza.id
+  );
+
+  if (existingItemIndex > -1) {
+    // Update existing item quantity
+    state.currentOrder[existingItemIndex].quantity += action.payload.quantity;
+    state.currentOrder[existingItemIndex] = calculateItemTotals(state.currentOrder[existingItemIndex]);
+  } else {
+    // Add new item to cart
+    state.currentOrder.push(calculateItemTotals(action.payload));
+  }
+  localStorage.setItem('pizza_current_order', JSON.stringify(state.currentOrder));
+}
+```
+
+**Key features:**
+- Automatically merges quantities for the same pizza
+- Recalculates discounts when quantity changes
+- Persists cart to localStorage immediately
+
+**Usage:**
+```typescript
+dispatch(addToOrder({ pizza: selectedPizza, quantity: 2 }));
+```
+
+#### `removeFromOrder(pizzaId: string)`
+
+Removes a pizza completely from the cart.
+
+```typescript
+removeFromOrder: (state, action: PayloadAction<string>) => {
+  state.currentOrder = state.currentOrder.filter((item) => item.pizza.id !== action.payload);
+  localStorage.setItem('pizza_current_order', JSON.stringify(state.currentOrder));
+}
+```
+
+**Usage:**
+```typescript
+dispatch(removeFromOrder('pizza-id-123'));
+```
+
+#### `updateQuantity({ pizzaId: string, quantity: number })`
+
+Updates the quantity of a specific pizza in the cart.
+
+```typescript
+updateQuantity: (state, action: PayloadAction<{ pizzaId: string; quantity: number }>) => {
+  const item = state.currentOrder.find((item) => item.pizza.id === action.payload.pizzaId);
+  if (item) {
+    item.quantity = action.payload.quantity;
+    const updatedItem = calculateItemTotals(item);
+    Object.assign(item, updatedItem);
+  }
+  localStorage.setItem('pizza_current_order', JSON.stringify(state.currentOrder));
+}
+```
+
+**Features:**
+- Recalculates line totals and discounts
+- Persists changes immediately
+- Safe operation (no-op if item not found)
+
+**Usage:**
+```typescript
+dispatch(updateQuantity({ pizzaId: 'pizza-id-123', quantity: 5 }));
+```
+
+#### `clearOrder()`
+
+Empties the current cart without saving to order history.
+
+```typescript
+clearOrder: (state) => {
+  state.currentOrder = [];
+  localStorage.removeItem('pizza_current_order');
+}
+```
+
+**Usage:**
+```typescript
+dispatch(clearOrder());
+```
+
+#### `addOrderToHistory(order: Order)`
+
+Completes an order by moving it to history and clearing the cart.
+
+```typescript
+addOrderToHistory: (state, action: PayloadAction<Order>) => {
+  state.orderHistory.push(action.payload);
+  state.currentOrder = [];
+  localStorage.setItem('pizza_orders', JSON.stringify(state.orderHistory));
+  localStorage.removeItem('pizza_current_order');
+}
+```
+
+**Atomic operation:**
+1. Adds order to history
+2. Clears current cart
+3. Updates both localStorage keys
+
+**Usage:**
+```typescript
+const order: Order = {
+  id: crypto.randomUUID(),
+  items: currentOrder,
+  subtotal: calculateSubtotal(currentOrder),
+  totalDiscount: calculateTotalDiscount(currentOrder),
+  finalTotal: calculateFinalTotal(currentOrder),
+  timestamp: new Date().toISOString(),
+};
+
+dispatch(addOrderToHistory(order));
+```
+
+### Exported Actions
+
+```typescript
+export const { 
+  addToOrder, 
+  removeFromOrder, 
+  updateQuantity, 
+  clearOrder, 
+  addOrderToHistory,
+  setLoading 
+} = orderSlice.actions;
+```
+
+## Selectors
+
+While the application primarily uses direct state access via `useAppSelector`, you can create memoized selectors for complex computations:
+
+```typescript
+import { createSelector } from '@reduxjs/toolkit';
+import type { RootState } from './index';
+
+// Get filtered and sorted pizzas
+export const selectFilteredPizzas = createSelector(
+  [(state: RootState) => state.pizza.pizzas,
+   (state: RootState) => state.pizza.filters],
+  (pizzas, filters) => {
+    let filtered = pizzas;
+    
+    // Apply search filter
+    if (filters.search) {
+      filtered = filtered.filter(pizza => 
+        pizza.name.toLowerCase().includes(filters.search.toLowerCase())
+      );
+    }
+    
+    // Apply category filter
+    if (filters.category !== 'all') {
+      filtered = filtered.filter(pizza => pizza.category === filters.category);
+    }
+    
+    // Apply price filter
+    filtered = filtered.filter(pizza => pizza.price <= filters.maxPrice);
+    
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'name-asc': return a.name.localeCompare(b.name);
+        case 'name-desc': return b.name.localeCompare(a.name);
+        case 'price-asc': return a.price - b.price;
+        case 'price-desc': return b.price - a.price;
+        default: return 0;
+      }
+    });
+    
+    return sorted;
+  }
+);
+
+// Get cart total
+export const selectCartTotal = createSelector(
+  [(state: RootState) => state.order.currentOrder],
+  (currentOrder) => {
+    return currentOrder.reduce((total, item) => total + item.finalLineTotal, 0);
+  }
+);
+
+// Get total discount
+export const selectTotalDiscount = createSelector(
+  [(state: RootState) => state.order.currentOrder],
+  (currentOrder) => {
+    return currentOrder.reduce((total, item) => total + item.discountAmount, 0);
+  }
+);
+```
+
+## Best Practices
+
+### 1. Always Use Typed Hooks
+
+```typescript
+// ✅ Good
+import { useAppDispatch, useAppSelector } from '../store';
+
+// ❌ Bad
+import { useDispatch, useSelector } from 'react-redux';
+```
+
+### 2. Destructure Actions from Slice
+
+```typescript
+// ✅ Good
+import { addToOrder, removeFromOrder } from '../store/orderSlice';
+
+// ❌ Bad
+import orderSlice from '../store/orderSlice';
+dispatch(orderSlice.actions.addToOrder(payload));
+```
+
+### 3. Keep Reducers Pure
+
+Redux Toolkit uses Immer, so you can write "mutating" logic safely:
+
+```typescript
+// ✅ Good (looks like mutation, but Immer handles immutability)
+state.filters.search = action.payload;
+
+// ❌ Unnecessary (but still works)
+return {
+  ...state,
+  filters: {
+    ...state.filters,
+    search: action.payload,
+  },
+};
+```
+
+### 4. Persist Critical State Only
+
+Only persist state that needs to survive page refreshes:
+- ✅ Current cart, order history, custom pizzas, user preferences
+- ❌ Loading states, temporary UI state, error messages
+
+### 5. Handle localStorage Errors
+
+Always wrap localStorage operations in try-catch blocks:
+
+```typescript
+try {
+  const saved = localStorage.getItem('key');
+  return saved ? JSON.parse(saved) : defaultValue;
+} catch {
+  return defaultValue;
+}
+```
+
+## Performance Considerations
+
+### Redux Toolkit Optimizations
+
+1. **Immer**: Efficient structural sharing prevents unnecessary object creation
+2. **DevTools**: Disabled in production builds automatically
+3. **Memoization**: Selectors cache results until inputs change
+
+### Avoiding Re-renders
+
+Use selective subscriptions to prevent unnecessary component updates:
+
+```typescript
+// ✅ Good - only re-renders when pizzas change
+const pizzas = useAppSelector(state => state.pizza.pizzas);
+
+// ❌ Bad - re-renders on any state change
+const state = useAppSelector(state => state);
+```
+
+## Testing Redux Slices
+
+Example test for the order slice:
+
+```typescript
+import { store } from '../index';
+import { addToOrder, updateQuantity } from '../orderSlice';
+
+test('applies 10% discount for 3+ items', () => {
+  const pizza = { id: '1', name: 'Test', price: 10, /* ... */ };
+  
+  store.dispatch(addToOrder({ pizza, quantity: 3 }));
+  
+  const state = store.getState();
+  const item = state.order.currentOrder[0];
+  
+  expect(item.originalLinePrice).toBe(30);
+  expect(item.discountAmount).toBe(3); // 10% of 30
+  expect(item.finalLineTotal).toBe(27);
+});
+```
+
+## Next Steps
+
+- [Routing](/architecture/routing) - Learn about route configuration
+- [Data Persistence](/architecture/data-persistence) - localStorage implementation details

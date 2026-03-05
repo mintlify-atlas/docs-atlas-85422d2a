@@ -1,0 +1,454 @@
+---
+title: 'Order Slice'
+description: 'Redux slice for managing shopping cart and order history'
+---
+
+## Overview
+
+The order slice manages the current shopping cart, order history, and checkout flow. It implements automatic discount calculation (10% off for 3+ of the same pizza) and persists both current orders and order history to localStorage.
+
+## State Shape
+
+```typescript
+interface OrderState {
+  currentOrder: OrderItem[];
+  orderHistory: Order[];
+  loading: boolean;
+}
+```
+
+<ResponseField name="currentOrder" type="OrderItem[]" required>
+  Array of items in the current shopping cart. Each item includes the pizza, quantity, and calculated pricing.
+</ResponseField>
+
+<ResponseField name="orderHistory" type="Order[]" required>
+  Array of completed orders with full details including timestamps and totals.
+</ResponseField>
+
+<ResponseField name="loading" type="boolean" required>
+  Loading state indicator for async operations.
+</ResponseField>
+
+## Initial State
+
+The initial state is hydrated from localStorage:
+
+```typescript
+{
+  currentOrder: [],  // Loaded from localStorage.pizza_current_order
+  orderHistory: [],  // Loaded from localStorage.pizza_orders
+  loading: false
+}
+```
+
+### Persistence
+
+- **Current order**: Stored in `localStorage` under key `pizza_current_order`
+- **Order history**: Stored in `localStorage` under key `pizza_orders`
+- Current order is automatically persisted after add, remove, and update operations
+- Order history is updated when orders are completed
+
+## Actions
+
+### setLoading
+
+Sets the loading state for async operations.
+
+```typescript
+setLoading(loading: boolean): void
+```
+
+<ParamField path="loading" type="boolean" required>
+  Loading state to set.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { setLoading } from './store/orderSlice';
+
+const CheckoutButton = () => {
+  const dispatch = useDispatch();
+  
+  const handleCheckout = async () => {
+    dispatch(setLoading(true));
+    try {
+      await processOrder();
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
+  
+  return <button onClick={handleCheckout}>Checkout</button>;
+};
+```
+
+**Side Effects:**
+- Updates `state.loading`
+
+---
+
+### addToOrder
+
+Adds a pizza to the current order or increases quantity if already present. Automatically calculates discounts and totals.
+
+```typescript
+addToOrder(payload: { pizza: Pizza; quantity: number }): void
+```
+
+<ParamField path="pizza" type="Pizza" required>
+  The pizza object to add to the order.
+</ParamField>
+
+<ParamField path="quantity" type="number" required>
+  Number of pizzas to add. Must be a positive integer.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { addToOrder } from './store/orderSlice';
+import type { Pizza } from './types';
+
+const PizzaCard = ({ pizza }: { pizza: Pizza }) => {
+  const dispatch = useDispatch();
+  const [quantity, setQuantity] = useState(1);
+  
+  const handleAddToCart = () => {
+    dispatch(addToOrder({ pizza, quantity }));
+  };
+  
+  return (
+    <div>
+      <h3>{pizza.name}</h3>
+      <p>${pizza.price}</p>
+      <input 
+        type="number" 
+        min="1" 
+        value={quantity}
+        onChange={(e) => setQuantity(Number(e.target.value))}
+      />
+      <button onClick={handleAddToCart}>Add to Cart</button>
+    </div>
+  );
+};
+```
+
+**Reducer Logic:**
+
+1. Searches for existing item with matching `pizza.id`
+2. If found: Increases quantity and recalculates totals
+3. If not found: Creates new order item with calculated totals
+4. Applies automatic discount calculation
+5. Persists updated order to localStorage
+
+**Side Effects:**
+- Updates or adds item to `state.currentOrder`
+- Recalculates `originalLinePrice`, `discountAmount`, and `finalLineTotal`
+- Persists entire current order to `localStorage.pizza_current_order`
+
+**Discount Logic:**
+- 10% discount applied when quantity ≥ 3 for the same pizza
+- Discount calculated as: `originalLinePrice * 0.1`
+- Final total: `originalLinePrice - discountAmount`
+
+---
+
+### removeFromOrder
+
+Removes a pizza from the current order by pizza ID.
+
+```typescript
+removeFromOrder(pizzaId: string): void
+```
+
+<ParamField path="pizzaId" type="string" required>
+  The ID of the pizza to remove from the order.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { removeFromOrder } from './store/orderSlice';
+
+const CartItem = ({ item }: { item: OrderItem }) => {
+  const dispatch = useDispatch();
+  
+  const handleRemove = () => {
+    dispatch(removeFromOrder(item.pizza.id));
+  };
+  
+  return (
+    <div>
+      <span>{item.pizza.name} x{item.quantity}</span>
+      <button onClick={handleRemove}>Remove</button>
+    </div>
+  );
+};
+```
+
+**Side Effects:**
+- Filters out the item with matching `pizza.id` from `state.currentOrder`
+- Persists updated order to `localStorage.pizza_current_order`
+
+---
+
+### updateQuantity
+
+Updates the quantity of a specific pizza in the order and recalculates totals.
+
+```typescript
+updateQuantity(payload: { pizzaId: string; quantity: number }): void
+```
+
+<ParamField path="pizzaId" type="string" required>
+  The ID of the pizza to update.
+</ParamField>
+
+<ParamField path="quantity" type="number" required>
+  New quantity for the pizza. Must be a positive integer.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { updateQuantity } from './store/orderSlice';
+
+const CartItem = ({ item }: { item: OrderItem }) => {
+  const dispatch = useDispatch();
+  
+  const handleQuantityChange = (newQuantity: number) => {
+    if (newQuantity > 0) {
+      dispatch(updateQuantity({ 
+        pizzaId: item.pizza.id, 
+        quantity: newQuantity 
+      }));
+    }
+  };
+  
+  return (
+    <div>
+      <span>{item.pizza.name}</span>
+      <button onClick={() => handleQuantityChange(item.quantity - 1)}>-</button>
+      <span>{item.quantity}</span>
+      <button onClick={() => handleQuantityChange(item.quantity + 1)}>+</button>
+    </div>
+  );
+};
+```
+
+**Reducer Logic:**
+
+1. Finds the order item by `pizzaId`
+2. Updates the quantity
+3. Recalculates totals using `calculateItemTotals`
+4. Applies discount if quantity ≥ 3
+5. Updates the item in place
+
+**Side Effects:**
+- Updates `quantity` for the matching item in `state.currentOrder`
+- Recalculates `originalLinePrice`, `discountAmount`, and `finalLineTotal`
+- Persists updated order to `localStorage.pizza_current_order`
+
+---
+
+### clearOrder
+
+Clears the current order completely.
+
+```typescript
+clearOrder(): void
+```
+
+**Example Usage:**
+
+```typescript
+import { useDispatch } from 'react-redux';
+import { clearOrder } from './store/orderSlice';
+
+const ClearCartButton = () => {
+  const dispatch = useDispatch();
+  
+  const handleClear = () => {
+    if (confirm('Clear your cart?')) {
+      dispatch(clearOrder());
+    }
+  };
+  
+  return <button onClick={handleClear}>Clear Cart</button>;
+};
+```
+
+**Side Effects:**
+- Sets `state.currentOrder` to empty array
+- Removes `pizza_current_order` from localStorage
+
+---
+
+### addOrderToHistory
+
+Completes the current order by adding it to history and clearing the cart.
+
+```typescript
+addOrderToHistory(order: Order): void
+```
+
+<ParamField path="order" type="Order" required>
+  Complete order object to add to history. Must include id, items, subtotal, totalDiscount, finalTotal, and timestamp.
+</ParamField>
+
+**Example Usage:**
+
+```typescript
+import { useDispatch, useSelector } from 'react-redux';
+import { addOrderToHistory } from './store/orderSlice';
+import type { Order } from './types';
+import type { RootState } from './store';
+
+const CheckoutButton = () => {
+  const dispatch = useDispatch();
+  const currentOrder = useSelector((state: RootState) => state.order.currentOrder);
+  
+  const handleCheckout = () => {
+    // Calculate totals
+    const subtotal = currentOrder.reduce((sum, item) => sum + item.originalLinePrice, 0);
+    const totalDiscount = currentOrder.reduce((sum, item) => sum + item.discountAmount, 0);
+    const finalTotal = currentOrder.reduce((sum, item) => sum + item.finalLineTotal, 0);
+    
+    const order: Order = {
+      id: `order-${Date.now()}`,
+      items: currentOrder,
+      subtotal,
+      totalDiscount,
+      finalTotal,
+      timestamp: new Date().toISOString()
+    };
+    
+    dispatch(addOrderToHistory(order));
+  };
+  
+  return <button onClick={handleCheckout}>Complete Order</button>;
+};
+```
+
+**Reducer Logic:**
+
+1. Appends order to `state.orderHistory`
+2. Clears `state.currentOrder`
+3. Persists order history to localStorage
+4. Removes current order from localStorage
+
+**Side Effects:**
+- Adds order to `state.orderHistory`
+- Clears `state.currentOrder`
+- Persists order history to `localStorage.pizza_orders`
+- Removes `pizza_current_order` from localStorage
+
+## Helper Functions
+
+### calculateItemTotals
+
+Internal helper function that calculates pricing for an order item.
+
+```typescript
+const calculateItemTotals = (item: { pizza: Pizza; quantity: number }): OrderItem => {
+  const originalLinePrice = item.pizza.price * item.quantity;
+  let discountAmount = 0;
+
+  // Discount: 10% for 3+ items of the same pizza
+  if (item.quantity >= 3) {
+    discountAmount = originalLinePrice * 0.1;
+  }
+
+  const finalLineTotal = originalLinePrice - discountAmount;
+
+  return {
+    ...item,
+    originalLinePrice,
+    discountAmount,
+    finalLineTotal,
+  };
+};
+```
+
+**Calculation Details:**
+
+- `originalLinePrice`: `pizza.price * quantity`
+- `discountAmount`: `originalLinePrice * 0.1` if `quantity >= 3`, else `0`
+- `finalLineTotal`: `originalLinePrice - discountAmount`
+
+**Example:**
+
+```typescript
+// Pizza costs $20, ordering 4 pizzas
+const item = {
+  pizza: { price: 20, ... },
+  quantity: 4
+};
+
+const result = calculateItemTotals(item);
+// {
+//   originalLinePrice: 80,   // 20 * 4
+//   discountAmount: 8,        // 80 * 0.1 (10% off for 3+)
+//   finalLineTotal: 72        // 80 - 8
+// }
+```
+
+## Selectors
+
+Common selector patterns for order state:
+
+```typescript
+import { RootState } from './store';
+
+// Get current order
+const selectCurrentOrder = (state: RootState) => state.order.currentOrder;
+
+// Get order history
+const selectOrderHistory = (state: RootState) => state.order.orderHistory;
+
+// Get cart totals
+const selectCartTotals = (state: RootState) => {
+  const items = state.order.currentOrder;
+  
+  return {
+    subtotal: items.reduce((sum, item) => sum + item.originalLinePrice, 0),
+    totalDiscount: items.reduce((sum, item) => sum + item.discountAmount, 0),
+    finalTotal: items.reduce((sum, item) => sum + item.finalLineTotal, 0),
+    itemCount: items.reduce((sum, item) => sum + item.quantity, 0)
+  };
+};
+
+// Get cart item count
+const selectCartItemCount = (state: RootState) => 
+  state.order.currentOrder.reduce((sum, item) => sum + item.quantity, 0);
+```
+
+## Discount Rules
+
+The order slice implements automatic discount calculation:
+
+- **Threshold**: 3 or more of the same pizza
+- **Discount**: 10% off the line total
+- **Application**: Automatically applied in `addToOrder` and `updateQuantity`
+- **Calculation**: Applied per line item, not to the entire order
+
+**Example Scenarios:**
+
+```typescript
+// Scenario 1: 2 Margherita pizzas ($15 each)
+// No discount (quantity < 3)
+// Original: $30, Discount: $0, Final: $30
+
+// Scenario 2: 3 Margherita pizzas ($15 each)
+// 10% discount applied
+// Original: $45, Discount: $4.50, Final: $40.50
+
+// Scenario 3: 5 Pepperoni pizzas ($18 each)
+// 10% discount applied
+// Original: $90, Discount: $9, Final: $81
+```

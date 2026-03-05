@@ -1,0 +1,333 @@
+---
+title: Installation Guide
+description: Detailed installation instructions for Pizza Chef Frontend
+---
+
+# Installation Guide
+
+This guide provides comprehensive instructions for installing and configuring the Pizza Chef Frontend application.
+
+## System Requirements
+
+### Required Software
+
+- **Node.js**: Version 18 or higher
+- **Package Manager**: npm (comes with Node.js), yarn, or pnpm
+- **Operating System**: Windows, macOS, or Linux
+- **Browser**: Modern browser with ES6+ support (Chrome, Firefox, Safari, Edge)
+
+### Recommended Tools
+
+- **Git**: For cloning the repository
+- **VS Code**: Or any modern code editor with TypeScript support
+- **Terminal**: Command-line interface for running scripts
+
+## Installation Steps
+
+<Steps>
+  <Step title="Verify Node.js Installation">
+    Check that Node.js is installed and meets the minimum version requirement:
+    
+    ```bash
+    node --version
+    ```
+    
+    You should see version 18.x.x or higher. If Node.js is not installed or outdated:
+    
+    - Download from [nodejs.org](https://nodejs.org/)
+    - Or use a version manager like [nvm](https://github.com/nvm-sh/nvm)
+    
+    ```bash
+    # Using nvm (recommended)
+    nvm install 18
+    nvm use 18
+    ```
+  </Step>
+
+  <Step title="Clone the Repository">
+    Clone the project repository to your local machine:
+    
+    ```bash
+    git clone <repository-url>
+    cd frontend-challenge
+    ```
+    
+    Verify you're in the correct directory:
+    
+    ```bash
+    ls -la
+    ```
+    
+    You should see `package.json` and other project files.
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required dependencies using your preferred package manager:
+    
+    <CodeGroup>
+    ```bash npm
+    npm install
+    ```
+    
+    ```bash yarn
+    yarn install
+    ```
+    
+    ```bash pnpm
+    pnpm install
+    ```
+    </CodeGroup>
+    
+    This will install all dependencies listed in `package.json`, including:
+    
+    **Core Dependencies:**
+    - React 19.2.0
+    - TypeScript 5.9.3
+    - Redux Toolkit 2.11.2
+    - React Router DOM 7.13.1
+    - Tailwind CSS 4.2.1
+    
+    **UI & Forms:**
+    - React Hook Form 7.71.2
+    - Zod 4.3.6
+    - Framer Motion 12.35.0
+    - Lucide React 0.577.0
+    - Recharts 3.7.0
+    
+    **Development Tools:**
+    - Vite 7.3.1
+    - Vitest 4.0.18
+    - ESLint 9.39.1
+    - React Testing Library 16.3.2
+  </Step>
+
+  <Step title="Verify Installation">
+    Confirm that all dependencies were installed correctly:
+    
+    ```bash
+    ls node_modules
+    ```
+    
+    You should see directories for all installed packages.
+  </Step>
+</Steps>
+
+## Configuration
+
+### Vite Configuration
+
+The project uses Vite as the build tool with the following configuration:
+
+```typescript
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react-swc'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+  },
+})
+```
+
+**Key Features:**
+- **React Plugin**: Uses SWC for faster compilation
+- **Tailwind CSS**: Integrated via Vite plugin
+- **Test Configuration**: Vitest with jsdom environment
+
+### TypeScript Configuration
+
+The project is built with TypeScript and requires type checking during build:
+
+```bash
+tsc -b
+```
+
+This is automatically run as part of the build process.
+
+## Project Structure
+
+After installation, your project structure will include:
+
+```
+frontend-challenge/
+├── src/                    # Source code
+│   ├── components/         # React components
+│   ├── store/             # Redux store configuration
+│   ├── setupTests.ts      # Test configuration
+│   └── ...
+├── node_modules/          # Installed dependencies
+├── public/                # Static assets
+├── package.json           # Project configuration
+├── vite.config.ts         # Vite configuration
+├── tsconfig.json          # TypeScript configuration
+└── ...
+```
+
+## Running the Application
+
+After successful installation, start the development server:
+
+<CodeGroup>
+```bash npm
+npm run dev
+```
+
+```bash yarn
+yarn dev
+```
+
+```bash pnpm
+pnpm dev
+```
+</CodeGroup>
+
+The application will be available at `http://localhost:5173`.
+
+## Development Scripts
+
+The `package.json` defines the following scripts:
+
+### Development
+
+```bash
+npm run dev
+```
+Starts the Vite development server with Hot Module Replacement (HMR) for instant updates.
+
+### Building
+
+```bash
+npm run build
+```
+Compiles TypeScript (`tsc -b`) and creates an optimized production build using Vite.
+
+### Preview
+
+```bash
+npm run preview
+```
+Serves the production build locally for testing before deployment.
+
+### Testing
+
+```bash
+# Run all tests
+npm run test
+
+# Interactive UI mode
+npm run test:ui
+```
+Executes the test suite using Vitest with React Testing Library.
+
+### Linting
+
+```bash
+npm run lint
+```
+Runs ESLint to check code quality and style issues.
+
+## Environment Configuration
+
+### Local Storage
+
+The application uses browser LocalStorage for data persistence:
+
+- **`pizza_current_order`**: Active cart state
+- **`pizza_orders`**: Order history for analytics
+- **`custom_pizzas`**: User-created custom pizzas
+- **`pizza_filters`**: User filter preferences
+
+No additional environment configuration is required for development.
+
+### Build Output
+
+Production builds are output to the `dist/` directory:
+
+```bash
+dist/
+├── assets/          # Bundled JS, CSS, and other assets
+├── index.html       # Entry HTML file
+└── ...
+```
+
+## Troubleshooting
+
+### Installation Issues
+
+**Problem**: Dependencies fail to install
+
+**Solution**: Clear cache and reinstall:
+
+<CodeGroup>
+```bash npm
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+```
+
+```bash yarn
+rm -rf node_modules yarn.lock
+yarn cache clean
+yarn install
+```
+
+```bash pnpm
+rm -rf node_modules pnpm-lock.yaml
+pnpm store prune
+pnpm install
+```
+</CodeGroup>
+
+### TypeScript Errors
+
+**Problem**: Type errors during development or build
+
+**Solution**: Ensure TypeScript dependencies are installed:
+
+```bash
+npm install --save-dev typescript @types/react @types/react-dom @types/node
+```
+
+### Vite Port Conflicts
+
+**Problem**: Port 5173 is already in use
+
+**Solution**: Vite will automatically use the next available port. Check terminal output for the actual port, or specify a custom port:
+
+```bash
+npm run dev -- --port 3000
+```
+
+### Test Environment Issues
+
+**Problem**: Tests fail to run or environment errors
+
+**Solution**: Verify test dependencies are installed:
+
+```bash
+npm install --save-dev vitest @vitest/ui jsdom @testing-library/react @testing-library/jest-dom
+```
+
+### Build Failures
+
+**Problem**: Production build fails
+
+**Solution**: 
+1. Check for TypeScript errors: `npx tsc --noEmit`
+2. Verify all dependencies are installed
+3. Clear Vite cache: `rm -rf node_modules/.vite`
+
+## Next Steps
+
+Now that you have successfully installed the Pizza Chef Frontend:
+
+1. **Start Development**: Run `npm run dev` to launch the development server
+2. **Explore the Code**: Review the source code in the `src/` directory
+3. **Run Tests**: Execute `npm run test` to ensure everything works
+4. **Build for Production**: Create a production build with `npm run build`
+
+For a quick walkthrough of basic features, see the [Quick Start](/quickstart) guide.

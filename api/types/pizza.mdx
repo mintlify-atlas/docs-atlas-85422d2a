@@ -1,0 +1,337 @@
+---
+title: 'Pizza Types'
+description: 'TypeScript type definitions for pizza data structures'
+---
+
+## Overview
+
+This module defines TypeScript interfaces and types for pizza-related data structures, including the core Pizza interface, filtering options, and sort configurations.
+
+## Types
+
+### Pizza
+
+Represents a pizza in the catalog.
+
+```typescript
+interface Pizza {
+  id: string;
+  name: string;
+  price: number;
+  ingredients: string[];
+  category: 'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy';
+  imageUrl: string;
+  isRecommended?: boolean;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the pizza. Typically a UUID or generated string like `custom-${timestamp}` for user-created pizzas.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Display name of the pizza (e.g., "Margherita", "Pepperoni").
+</ResponseField>
+
+<ResponseField name="price" type="number" required>
+  Price of the pizza in dollars. Must be a positive number.
+</ResponseField>
+
+<ResponseField name="ingredients" type="string[]" required>
+  Array of ingredient names (e.g., `["Tomato", "Mozzarella", "Basil"]`).
+</ResponseField>
+
+<ResponseField name="category" type="'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy'" required>
+  Category classification. Must be one of the four defined categories.
+</ResponseField>
+
+<ResponseField name="imageUrl" type="string" required>
+  URL or path to the pizza image. Can be a relative path, absolute URL, or data URI.
+</ResponseField>
+
+<ResponseField name="isRecommended" type="boolean">
+  Optional flag indicating if the pizza is featured/recommended. Used for highlighting in UI.
+</ResponseField>
+
+**Example:**
+
+```typescript
+const margherita: Pizza = {
+  id: "pizza-001",
+  name: "Margherita",
+  price: 12.99,
+  ingredients: ["Tomato Sauce", "Fresh Mozzarella", "Basil", "Olive Oil"],
+  category: "Vegetarian",
+  imageUrl: "/images/margherita.jpg",
+  isRecommended: true
+};
+
+const pepperoni: Pizza = {
+  id: "pizza-002",
+  name: "Pepperoni",
+  price: 14.99,
+  ingredients: ["Tomato Sauce", "Mozzarella", "Pepperoni"],
+  category: "Meat",
+  imageUrl: "/images/pepperoni.jpg"
+};
+```
+
+---
+
+### SortOption
+
+Defines available sorting options for the pizza catalog.
+
+```typescript
+type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+```
+
+**Values:**
+
+- `name-asc`: Sort by name alphabetically (A to Z)
+- `name-desc`: Sort by name reverse alphabetically (Z to A)
+- `price-asc`: Sort by price from lowest to highest
+- `price-desc`: Sort by price from highest to lowest
+
+**Example:**
+
+```typescript
+import type { SortOption } from './types';
+
+const sortPizzas = (pizzas: Pizza[], sortBy: SortOption): Pizza[] => {
+  return [...pizzas].sort((a, b) => {
+    switch (sortBy) {
+      case 'name-asc':
+        return a.name.localeCompare(b.name);
+      case 'name-desc':
+        return b.name.localeCompare(a.name);
+      case 'price-asc':
+        return a.price - b.price;
+      case 'price-desc':
+        return b.price - a.price;
+      default:
+        return 0;
+    }
+  });
+};
+
+// Usage
+const sorted = sortPizzas(allPizzas, 'price-asc');
+```
+
+---
+
+### PizzaFilters
+
+Configuration object for filtering and sorting the pizza catalog.
+
+```typescript
+interface PizzaFilters {
+  search: string;
+  category: string;
+  maxPrice: number;
+  sortBy: SortOption;
+}
+```
+
+<ResponseField name="search" type="string" required>
+  Search query for filtering pizzas by name or ingredients. Case-insensitive matching.
+</ResponseField>
+
+<ResponseField name="category" type="string" required>
+  Category filter. Use `'all'` to show all categories, or specify a category like `'Vegetarian'`, `'Meat'`, `'Seafood'`, or `'Spicy'`.
+</ResponseField>
+
+<ResponseField name="maxPrice" type="number" required>
+  Maximum price threshold. Only pizzas with `price <= maxPrice` are shown. Defaults to 50 and enforced to minimum of 50 on load.
+</ResponseField>
+
+<ResponseField name="sortBy" type="SortOption" required>
+  Sort order for the filtered results.
+</ResponseField>
+
+**Example:**
+
+```typescript
+import type { PizzaFilters, Pizza } from './types';
+
+const defaultFilters: PizzaFilters = {
+  search: '',
+  category: 'all',
+  maxPrice: 50,
+  sortBy: 'name-asc'
+};
+
+const applyFilters = (pizzas: Pizza[], filters: PizzaFilters): Pizza[] => {
+  return pizzas
+    .filter(pizza => {
+      // Search filter
+      const searchLower = filters.search.toLowerCase();
+      const matchesSearch = 
+        pizza.name.toLowerCase().includes(searchLower) ||
+        pizza.ingredients.some(ing => ing.toLowerCase().includes(searchLower));
+      
+      // Category filter
+      const matchesCategory = 
+        filters.category === 'all' || pizza.category === filters.category;
+      
+      // Price filter
+      const matchesPrice = pizza.price <= filters.maxPrice;
+      
+      return matchesSearch && matchesCategory && matchesPrice;
+    })
+    .sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'name-asc': return a.name.localeCompare(b.name);
+        case 'name-desc': return b.name.localeCompare(a.name);
+        case 'price-asc': return a.price - b.price;
+        case 'price-desc': return b.price - a.price;
+        default: return 0;
+      }
+    });
+};
+
+// Usage examples
+const vegetarianFilters: PizzaFilters = {
+  search: '',
+  category: 'Vegetarian',
+  maxPrice: 50,
+  sortBy: 'price-asc'
+};
+
+const searchFilters: PizzaFilters = {
+  search: 'mushroom',
+  category: 'all',
+  maxPrice: 25,
+  sortBy: 'name-asc'
+};
+```
+
+## Usage Patterns
+
+### Type Guards
+
+```typescript
+import type { Pizza, SortOption } from './types';
+
+function isPizza(obj: any): obj is Pizza {
+  return (
+    typeof obj === 'object' &&
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.price === 'number' &&
+    Array.isArray(obj.ingredients) &&
+    ['Vegetarian', 'Meat', 'Seafood', 'Spicy'].includes(obj.category) &&
+    typeof obj.imageUrl === 'string'
+  );
+}
+
+function isSortOption(value: string): value is SortOption {
+  return ['name-asc', 'name-desc', 'price-asc', 'price-desc'].includes(value);
+}
+```
+
+### Creating Pizzas
+
+```typescript
+import type { Pizza } from './types';
+
+function createCustomPizza(
+  name: string,
+  price: number,
+  ingredients: string[],
+  category: Pizza['category'],
+  imageUrl: string
+): Pizza {
+  return {
+    id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    name,
+    price,
+    ingredients,
+    category,
+    imageUrl,
+    isRecommended: false
+  };
+}
+
+// Usage
+const myPizza = createCustomPizza(
+  "Supreme Deluxe",
+  18.99,
+  ["Tomato Sauce", "Mozzarella", "Pepperoni", "Mushrooms", "Olives"],
+  "Meat",
+  "/images/custom/supreme.jpg"
+);
+```
+
+### Filtering Logic
+
+```typescript
+import type { Pizza, PizzaFilters } from './types';
+
+class PizzaCatalog {
+  private pizzas: Pizza[];
+  
+  constructor(pizzas: Pizza[]) {
+    this.pizzas = pizzas;
+  }
+  
+  filter(filters: PizzaFilters): Pizza[] {
+    return this.pizzas
+      .filter(this.matchesFilters(filters))
+      .sort(this.getSorter(filters.sortBy));
+  }
+  
+  private matchesFilters(filters: PizzaFilters) {
+    return (pizza: Pizza): boolean => {
+      const searchMatch = this.matchesSearch(pizza, filters.search);
+      const categoryMatch = this.matchesCategory(pizza, filters.category);
+      const priceMatch = pizza.price <= filters.maxPrice;
+      
+      return searchMatch && categoryMatch && priceMatch;
+    };
+  }
+  
+  private matchesSearch(pizza: Pizza, search: string): boolean {
+    if (!search) return true;
+    
+    const searchLower = search.toLowerCase();
+    return (
+      pizza.name.toLowerCase().includes(searchLower) ||
+      pizza.ingredients.some(ing => ing.toLowerCase().includes(searchLower))
+    );
+  }
+  
+  private matchesCategory(pizza: Pizza, category: string): boolean {
+    return category === 'all' || pizza.category === category;
+  }
+  
+  private getSorter(sortBy: SortOption) {
+    return (a: Pizza, b: Pizza): number => {
+      switch (sortBy) {
+        case 'name-asc': return a.name.localeCompare(b.name);
+        case 'name-desc': return b.name.localeCompare(a.name);
+        case 'price-asc': return a.price - b.price;
+        case 'price-desc': return b.price - a.price;
+      }
+    };
+  }
+}
+```
+
+## Category Types
+
+The Pizza category is a union of literal types:
+
+```typescript
+type PizzaCategory = 'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy';
+```
+
+**Category Descriptions:**
+
+- **Vegetarian**: Pizzas with no meat or seafood ingredients
+- **Meat**: Pizzas containing meat toppings (pepperoni, sausage, ham, etc.)
+- **Seafood**: Pizzas with seafood toppings (shrimp, anchovies, tuna, etc.)
+- **Spicy**: Pizzas with hot/spicy ingredients or preparations
+
+**Note**: A pizza can only belong to one category. If a pizza has multiple characteristics (e.g., meat and spicy), the primary category is used.

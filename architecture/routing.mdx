@@ -1,0 +1,629 @@
+---
+title: 'Routing'
+description: 'React Router DOM setup, route configuration, and navigation patterns'
+---
+
+# Routing
+
+The Pizza Chef Frontend uses **React Router DOM v7** for client-side routing. This document covers the routing architecture, route configuration, and navigation patterns.
+
+## Router Configuration
+
+The application uses a `BrowserRouter` with nested routes defined in `App.tsx`:
+
+```tsx
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Layout from './components/layout/Layout';
+import Dashboard from './pages/Dashboard.tsx';
+import AddPizza from './pages/AddPizza.tsx';
+import AdminAnalytics from './pages/AdminAnalytics.tsx';
+import PizzaDetails from './pages/PizzaDetails.tsx';
+import About from './pages/About.tsx';
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="pizza/:id" element={<PizzaDetails />} />
+          <Route path="add-pizza" element={<AddPizza />} />
+          <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="about" element={<About />} />
+        </Route>
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+```
+
+## Route Structure
+
+The application uses a nested route architecture with a shared layout.
+
+### Route Hierarchy
+
+```
+/                           (Layout wrapper)
+├── /                      (Dashboard - index route)
+├── /pizza/:id             (Pizza details page)
+├── /add-pizza             (Create custom pizza)
+├── /analytics             (Business intelligence dashboard)
+└── /about                 (About page)
+```
+
+### Visual Route Tree
+
+```
+App
+└── Router (BrowserRouter)
+    └── Routes
+        └── Route path="/" element={Layout}
+            ├── Route index element={Dashboard}
+            ├── Route path="pizza/:id" element={PizzaDetails}
+            ├── Route path="add-pizza" element={AddPizza}
+            ├── Route path="analytics" element={AdminAnalytics}
+            └── Route path="about" element={About}
+```
+
+## Layout Component
+
+The `Layout` component wraps all routes and provides consistent UI structure:
+
+- **Header/Navigation**: Persistent navigation bar across all pages
+- **Outlet**: React Router's `<Outlet />` component renders child routes
+- **Cart Sidebar**: Persistent shopping cart accessible from all pages
+
+**Layout structure:**
+
+```tsx
+import { Outlet } from 'react-router-dom';
+import Header from './Header';
+import CartSidebar from './CartSidebar';
+
+function Layout() {
+  return (
+    <div className="min-h-screen">
+      <Header />
+      <main>
+        <Outlet /> {/* Child routes render here */}
+      </main>
+      <CartSidebar />
+    </div>
+  );
+}
+```
+
+## Route Definitions
+
+### Dashboard (Index Route)
+
+**Path:** `/`  
+**Component:** `Dashboard`
+
+**Purpose:**
+- Main landing page
+- Displays pizza catalog with filtering and sorting
+- Search functionality
+- Category filters (Vegetarian, Meat, Seafood, Spicy)
+- Price range slider
+- Grid of clickable pizza cards
+
+**Key features:**
+- Connected to `pizza` slice for catalog data
+- Real-time filtering using Redux state
+- Responsive grid layout (1-4 columns based on screen size)
+- Click on card navigates to detail page
+
+### Pizza Details
+
+**Path:** `/pizza/:id`  
+**Component:** `PizzaDetails`  
+**Dynamic Parameter:** `id` (pizza identifier)
+
+**Purpose:**
+- Detailed view of a single pizza
+- Large product image
+- Full ingredient list
+- Quantity selector
+- "Add to Cart" functionality
+- Shows discount badge if 3+ items
+
+**URL parameter access:**
+
+```tsx
+import { useParams } from 'react-router-dom';
+import { useAppSelector } from '../store';
+
+function PizzaDetails() {
+  const { id } = useParams<{ id: string }>();
+  const pizza = useAppSelector(state => 
+    state.pizza.pizzas.find(p => p.id === id)
+  );
+  
+  if (!pizza) return <div>Pizza not found</div>;
+  
+  // Render pizza details...
+}
+```
+
+**Example URLs:**
+- `/pizza/margherita-classic`
+- `/pizza/pepperoni-deluxe`
+- `/pizza/seafood-special`
+
+### Add Pizza
+
+**Path:** `/add-pizza`  
+**Component:** `AddPizza`
+
+**Purpose:**
+- Form to create custom pizzas
+- Uses React Hook Form + Zod validation
+- Live preview card
+- Adds pizza to catalog on submission
+
+**Form fields:**
+- Pizza name (required, min 3 characters)
+- Price (required, min $5.00)
+- Category (dropdown: Vegetarian, Meat, Seafood, Spicy)
+- Ingredients (multi-select, min 2 items)
+- Image URL (optional, with validation)
+- Mark as recommended (checkbox)
+
+**On successful submission:**
+1. Dispatches `addPizzaToCatalog` action
+2. Persists to localStorage
+3. Navigates back to dashboard
+4. Shows success toast notification
+
+### Analytics
+
+**Path:** `/analytics`  
+**Component:** `AdminAnalytics`
+
+**Purpose:**
+- Business intelligence dashboard
+- Visual charts using Recharts
+- Price distribution analysis
+- Order popularity metrics
+
+**Data visualizations:**
+1. **Price Distribution Chart**: Bar chart showing price ranges across catalog
+2. **Order Distribution Chart**: Pie chart of most popular pizzas from order history
+3. **Revenue Analytics**: Total sales, average order value
+4. **Trending Items**: Most frequently ordered pizzas
+
+**Data source:**
+- Reads from `orderHistory` in Redux state
+- Aggregates data from completed orders
+- Real-time updates as new orders complete
+
+### About
+
+**Path:** `/about`  
+**Component:** `About`
+
+**Purpose:**
+- Information about the application
+- Technology stack details
+- Feature highlights
+- Developer information
+
+## Navigation Patterns
+
+### Programmatic Navigation
+
+Navigate using the `useNavigate` hook:
+
+```tsx
+import { useNavigate } from 'react-router-dom';
+
+function MyComponent() {
+  const navigate = useNavigate();
+  
+  const handleAddToCart = () => {
+    // Add to cart logic...
+    navigate('/'); // Return to dashboard
+  };
+  
+  const viewPizza = (pizzaId: string) => {
+    navigate(`/pizza/${pizzaId}`);
+  };
+  
+  const goBack = () => {
+    navigate(-1); // Browser back
+  };
+}
+```
+
+### Link Components
+
+Use `Link` or `NavLink` for declarative navigation:
+
+```tsx
+import { Link, NavLink } from 'react-router-dom';
+
+// Standard link
+<Link to="/add-pizza" className="btn">
+  Create Pizza
+</Link>
+
+// Link with dynamic parameter
+<Link to={`/pizza/${pizza.id}`}>
+  View Details
+</Link>
+
+// NavLink with active styling
+<NavLink 
+  to="/analytics"
+  className={({ isActive }) => 
+    isActive ? 'nav-link active' : 'nav-link'
+  }
+>
+  Analytics
+</NavLink>
+```
+
+### Navigation with State
+
+Pass state between routes:
+
+```tsx
+// Navigate with state
+navigate('/add-pizza', { 
+  state: { fromDashboard: true } 
+});
+
+// Access state in destination component
+import { useLocation } from 'react-router-dom';
+
+function AddPizza() {
+  const location = useLocation();
+  const fromDashboard = location.state?.fromDashboard;
+  
+  // Use state...
+}
+```
+
+## Route Guards & Protection
+
+While this application doesn't implement authentication, here's how you would add protected routes:
+
+```tsx
+import { Navigate } from 'react-router-dom';
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuth(); // Custom hook
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+}
+
+// Usage
+<Route 
+  path="/analytics" 
+  element={
+    <ProtectedRoute>
+      <AdminAnalytics />
+    </ProtectedRoute>
+  } 
+/>
+```
+
+## Dynamic Route Parameters
+
+### Accessing Parameters
+
+```tsx
+import { useParams } from 'react-router-dom';
+
+function PizzaDetails() {
+  // Type-safe parameter access
+  const { id } = useParams<{ id: string }>();
+  
+  // Use parameter to fetch data
+  const pizza = useAppSelector(state => 
+    state.pizza.pizzas.find(p => p.id === id)
+  );
+}
+```
+
+### Multiple Parameters
+
+For routes with multiple dynamic segments:
+
+```tsx
+// Route definition
+<Route path="/order/:orderId/item/:itemId" element={<OrderItem />} />
+
+// Access in component
+const { orderId, itemId } = useParams<{ orderId: string; itemId: string }>();
+```
+
+## Query Parameters
+
+Handle URL query strings:
+
+```tsx
+import { useSearchParams } from 'react-router-dom';
+
+function Dashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Read query param: /dashboard?category=Vegetarian
+  const category = searchParams.get('category');
+  
+  // Update query params
+  const updateCategory = (newCategory: string) => {
+    setSearchParams({ category: newCategory });
+  };
+  
+  // Remove query param
+  const clearFilters = () => {
+    setSearchParams({});
+  };
+}
+```
+
+**Example with filters:**
+
+```tsx
+// URL: /?category=Vegetarian&maxPrice=25&sort=price-asc
+
+const category = searchParams.get('category') || 'all';
+const maxPrice = Number(searchParams.get('maxPrice')) || 50;
+const sortBy = searchParams.get('sort') || 'name-asc';
+```
+
+## Scroll Behavior
+
+### Scroll to Top on Route Change
+
+```tsx
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  
+  return null;
+}
+
+// Add to App.tsx
+function App() {
+  return (
+    <Router>
+      <ScrollToTop />
+      <Routes>
+        {/* routes */}
+      </Routes>
+    </Router>
+  );
+}
+```
+
+### Preserve Scroll Position
+
+```tsx
+import { useLayoutEffect } from 'react';
+
+function useScrollRestoration() {
+  const location = useLocation();
+  
+  useLayoutEffect(() => {
+    const savedPosition = sessionStorage.getItem(`scroll-${location.pathname}`);
+    if (savedPosition) {
+      window.scrollTo(0, parseInt(savedPosition));
+    }
+    
+    return () => {
+      sessionStorage.setItem(`scroll-${location.pathname}`, String(window.scrollY));
+    };
+  }, [location.pathname]);
+}
+```
+
+## Error Handling
+
+### 404 Not Found
+
+Add a catch-all route:
+
+```tsx
+import NotFound from './pages/NotFound';
+
+<Routes>
+  <Route path="/" element={<Layout />}>
+    {/* existing routes */}
+    <Route path="*" element={<NotFound />} />
+  </Route>
+</Routes>
+```
+
+### Error Boundaries
+
+Handle component errors:
+
+```tsx
+import { ErrorBoundary } from 'react-error-boundary';
+
+function ErrorFallback({ error }: { error: Error }) {
+  return (
+    <div>
+      <h1>Something went wrong</h1>
+      <pre>{error.message}</pre>
+    </div>
+  );
+}
+
+<Route 
+  path="/pizza/:id" 
+  element={
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <PizzaDetails />
+    </ErrorBoundary>
+  } 
+/>
+```
+
+## Route-Based Code Splitting
+
+Optimize bundle size with lazy loading:
+
+```tsx
+import { lazy, Suspense } from 'react';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const PizzaDetails = lazy(() => import('./pages/PizzaDetails'));
+const AddPizza = lazy(() => import('./pages/AddPizza'));
+const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
+
+function App() {
+  return (
+    <Router>
+      <Suspense fallback={<div>Loading...</div>}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="pizza/:id" element={<PizzaDetails />} />
+            <Route path="add-pizza" element={<AddPizza />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    </Router>
+  );
+}
+```
+
+**Benefits:**
+- Smaller initial bundle size
+- Faster first page load
+- Components loaded on demand
+- Automatic code splitting by route
+
+## Navigation Menu Implementation
+
+Typical navigation menu using `NavLink`:
+
+```tsx
+import { NavLink } from 'react-router-dom';
+import { Home, Pizza, BarChart, Info } from 'lucide-react';
+
+function Navigation() {
+  return (
+    <nav>
+      <NavLink 
+        to="/"
+        className={({ isActive }) => 
+          `nav-item ${isActive ? 'active' : ''}`
+        }
+      >
+        <Home size={20} />
+        Dashboard
+      </NavLink>
+      
+      <NavLink to="/add-pizza" className={({ isActive }) => 
+          `nav-item ${isActive ? 'active' : ''}`
+        }>
+        <Pizza size={20} />
+        Create Pizza
+      </NavLink>
+      
+      <NavLink to="/analytics" className={({ isActive }) => 
+          `nav-item ${isActive ? 'active' : ''}`
+        }>
+        <BarChart size={20} />
+        Analytics
+      </NavLink>
+      
+      <NavLink to="/about" className={({ isActive }) => 
+          `nav-item ${isActive ? 'active' : ''}`
+        }>
+        <Info size={20} />
+        About
+      </NavLink>
+    </nav>
+  );
+}
+```
+
+## Best Practices
+
+### 1. Use Index Routes for Defaults
+
+```tsx
+// ✅ Good
+<Route path="/" element={<Layout />}>
+  <Route index element={<Dashboard />} />
+</Route>
+
+// ❌ Bad
+<Route path="/" element={<Layout />}>
+  <Route path="" element={<Dashboard />} />
+</Route>
+```
+
+### 2. Type Route Parameters
+
+```tsx
+// ✅ Good
+const { id } = useParams<{ id: string }>();
+
+// ❌ Bad
+const { id } = useParams();
+```
+
+### 3. Use Relative Paths in Nested Routes
+
+```tsx
+// Parent is at /dashboard
+
+// ✅ Good
+<Route path="settings" element={<Settings />} /> // /dashboard/settings
+
+// ❌ Bad
+<Route path="/dashboard/settings" element={<Settings />} />
+```
+
+### 4. Prefer `Link` Over Manual Navigation
+
+```tsx
+// ✅ Good - Better for accessibility and SEO
+<Link to="/add-pizza">Create Pizza</Link>
+
+// ❌ Bad - Harder to crawl, no right-click "Open in new tab"
+<button onClick={() => navigate('/add-pizza')}>Create Pizza</button>
+```
+
+### 5. Use `replace` for Redirects
+
+```tsx
+// Prevent back button from returning to redirect
+navigate('/dashboard', { replace: true });
+
+// Or with Navigate component
+<Navigate to="/dashboard" replace />
+```
+
+## Performance Tips
+
+1. **Lazy load routes**: Use `React.lazy()` for code splitting
+2. **Prefetch routes**: Preload likely next routes on hover
+3. **Minimize Layout shifts**: Use Suspense fallbacks that match component size
+4. **Cache route data**: Store fetched data in Redux to avoid refetching
+
+## Next Steps
+
+- [State Management](/architecture/state-management) - Redux integration with routing
+- [Data Persistence](/architecture/data-persistence) - Persisting route-related state

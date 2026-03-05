@@ -1,0 +1,218 @@
+---
+title: Development Environment Setup
+description: Set up your local development environment for the Pizza Chef Frontend application
+---
+
+## Overview
+
+The Pizza Chef Frontend is a modern React application built with TypeScript, Vite, and Redux Toolkit. This guide will walk you through setting up your development environment from scratch.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+- **Node.js** (v18 or higher)
+- **npm** (comes with Node.js) or **yarn**
+- A code editor (VS Code recommended)
+- Git for version control
+
+## Installation
+
+<Steps>
+
+<Step title="Clone the repository">
+  Clone the Pizza Chef Frontend repository to your local machine:
+  
+  ```bash
+  git clone <repository-url>
+  cd frontend-challenge
+  ```
+</Step>
+
+<Step title="Install dependencies">
+  Install all required npm packages using npm:
+  
+  ```bash
+  npm install
+  ```
+  
+  This will install all dependencies listed in `package.json`, including:
+  
+  **Core Dependencies:**
+  - `react` (^19.2.0) - React library
+  - `react-dom` (^19.2.0) - React DOM rendering
+  - `@reduxjs/toolkit` (^2.11.2) - State management
+  - `react-redux` (^9.2.0) - React bindings for Redux
+  - `react-router-dom` (^7.13.1) - Client-side routing
+  
+  **UI & Styling:**
+  - `tailwindcss` (^4.2.1) - Utility-first CSS framework
+  - `@tailwindcss/vite` (^4.2.1) - Tailwind Vite integration
+  - `framer-motion` (^12.35.0) - Animation library
+  - `lucide-react` (^0.577.0) - Icon library
+  
+  **Forms & Validation:**
+  - `react-hook-form` (^7.71.2) - Form state management
+  - `@hookform/resolvers` (^5.2.2) - Validation resolvers
+  - `zod` (^4.3.6) - Schema validation
+  
+  **Charts & Utilities:**
+  - `recharts` (^3.7.0) - Charting library
+  - `clsx` (^2.1.1) - Conditional className utility
+</Step>
+
+<Step title="Start the development server">
+  Launch the Vite development server with Hot Module Replacement (HMR):
+  
+  ```bash
+  npm run dev
+  ```
+  
+  The application will be available at `http://localhost:5173` by default. The development server provides:
+  
+  - **Fast HMR**: Instant updates without full page reloads
+  - **TypeScript checking**: Real-time type error detection
+  - **ESLint integration**: Code quality checks
+  - **React Fast Refresh**: Preserves component state during updates
+</Step>
+
+<Step title="Verify the setup">
+  Open your browser and navigate to `http://localhost:5173`. You should see the Pizza Chef application with:
+  
+  - A list of available pizzas
+  - Navigation menu (Home, Analytics, Create Pizza)
+  - Order summary sidebar
+  - Responsive layout
+</Step>
+
+</Steps>
+
+## Development Scripts
+
+The project includes several npm scripts for development workflows:
+
+### `npm run dev`
+
+Starts the Vite development server with HMR enabled. This is your primary command for day-to-day development.
+
+```bash
+npm run dev
+```
+
+### `npm run lint`
+
+Runs ESLint to check code quality and style issues:
+
+```bash
+npm run lint
+```
+
+The project uses:
+- `eslint` (^9.39.1)
+- `@eslint/js` (^9.39.1)
+- `eslint-plugin-react-hooks` (^7.0.1) - React Hooks rules
+- `eslint-plugin-react-refresh` (^0.4.24) - Fast Refresh compatibility
+- `typescript-eslint` (^8.48.0) - TypeScript-specific rules
+
+### `npm run preview`
+
+Serves the production build locally for testing:
+
+```bash
+npm run preview
+```
+
+This is useful for verifying the production build before deployment.
+
+## Project Structure
+
+Once installed, your project structure will look like this:
+
+```
+frontend-challenge/
+├── src/
+│   ├── components/         # React components
+│   │   ├── pizza/         # Pizza-related components
+│   │   │   └── __tests__/ # Component tests
+│   │   ├── order/         # Order components
+│   │   └── analytics/     # Analytics components
+│   ├── store/             # Redux store and slices
+│   │   ├── pizzaSlice.ts
+│   │   ├── orderSlice.ts
+│   │   └── __tests__/     # Store tests
+│   ├── types/             # TypeScript type definitions
+│   ├── data/              # Static data (pizzas.json)
+│   ├── setupTests.ts      # Test configuration
+│   ├── App.tsx            # Root component
+│   └── main.tsx           # Application entry point
+├── public/                # Static assets
+├── vite.config.ts         # Vite configuration
+├── tsconfig.json          # TypeScript configuration
+├── tailwind.config.js     # Tailwind CSS configuration
+└── package.json           # Project dependencies
+```
+
+## Technology Stack
+
+### Build Tool: Vite
+
+Vite provides lightning-fast development and optimized production builds:
+
+- **Instant server start**: No bundling during development
+- **Lightning-fast HMR**: Updates reflect in milliseconds
+- **Optimized builds**: Production builds use Rollup for optimal output
+- **TypeScript support**: Native TypeScript compilation
+
+### Styling: Tailwind CSS 4.0
+
+The project uses Tailwind CSS 4.0 with the Vite plugin:
+
+- Utility-first CSS approach
+- Mobile-first responsive design
+- Custom design tokens
+- Automatic class purging in production
+
+### State Management: Redux Toolkit
+
+Global state is managed with Redux Toolkit, providing:
+
+- **Simplified Redux logic**: Less boilerplate code
+- **Immutable updates**: Using Immer under the hood
+- **DevTools integration**: Time-travel debugging
+- **LocalStorage persistence**: Order history and current cart
+
+## Data Persistence
+
+The application uses localStorage for client-side persistence:
+
+- **`pizza_current_order`**: Active shopping cart
+- **`pizza_orders`**: Order history for analytics
+- **`custom_pizzas`**: User-created pizzas
+- **`pizza_filters`**: Search and filter preferences
+
+## Next Steps
+
+Now that your environment is set up:
+
+1. Explore the codebase structure
+2. Run the test suite with `npm run test`
+3. Review the [Testing Guide](/development/testing) for writing tests
+4. Check the [Build Process](/development/building) for deployment preparation
+
+## Troubleshooting
+
+### Port Already in Use
+
+If port 5173 is already in use, Vite will automatically try the next available port. You can specify a custom port in `vite.config.ts`.
+
+### Module Not Found Errors
+
+If you encounter module resolution errors:
+
+1. Delete `node_modules` and `package-lock.json`
+2. Run `npm install` again
+3. Restart your development server
+
+### TypeScript Errors
+
+Ensure you're using TypeScript ~5.9.3 as specified in `package.json`. Check your IDE's TypeScript version matches the project version.

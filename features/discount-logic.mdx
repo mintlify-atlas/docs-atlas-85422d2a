@@ -1,0 +1,260 @@
+---
+title: Discount Logic
+description: Bulk discount calculation system that applies 10% off for 3+ items
+---
+
+# Discount Logic
+
+The Pizza Chef Frontend implements an automatic bulk discount system to encourage larger orders. When a customer orders 3 or more of the same pizza, they receive a 10% discount on that line item.
+
+## Discount Rule
+
+<Note>
+**Discount Policy**: 10% off when ordering 3 or more of the same pizza
+
+The discount applies per pizza type, not to the total order. Each unique pizza in the cart is evaluated independently.
+</Note>
+
+## Implementation
+
+The discount calculation is implemented in `orderSlice.ts` through the `calculateItemTotals` function:
+
+```typescript
+const calculateItemTotals = (item: { pizza: Pizza; quantity: number }): OrderItem => {
+  const originalLinePrice = item.pizza.price * item.quantity;
+  let discountAmount = 0;
+
+  // Discount: 10% for 3+ items of the same pizza
+  if (item.quantity >= 3) {
+    discountAmount = originalLinePrice * 0.1;
+  }
+
+  const finalLineTotal = originalLinePrice - discountAmount;
+
+  return {
+    ...item,
+    originalLinePrice,
+    discountAmount,
+    finalLineTotal,
+  };
+};
+```
+
+### Calculation Breakdown
+
+1. **Original Line Price**: `pizza.price * quantity`
+2. **Discount Amount**: `originalLinePrice * 0.1` (if quantity >= 3)
+3. **Final Line Total**: `originalLinePrice - discountAmount`
+
+## OrderItem Structure
+
+Each item in the cart includes discount information:
+
+```typescript
+export interface OrderItem {
+  pizza: Pizza;
+  quantity: number;
+  originalLinePrice: number;  // Before discount
+  discountAmount: number;     // Amount saved
+  finalLineTotal: number;     // After discount
+}
+```
+
+This structure allows the UI to display both the original price and savings to the customer.
+
+## When Discounts Are Applied
+
+The `calculateItemTotals` function is called in three scenarios:
+
+### 1. Adding to Cart
+
+```typescript
+addToOrder: (state, action: PayloadAction<{ pizza: Pizza; quantity: number }>) => {
+  const existingItemIndex = state.currentOrder.findIndex(
+    (item) => item.pizza.id === action.payload.pizza.id
+  );
+
+  if (existingItemIndex > -1) {
+    state.currentOrder[existingItemIndex].quantity += action.payload.quantity;
+    state.currentOrder[existingItemIndex] = calculateItemTotals(state.currentOrder[existingItemIndex]);
+  } else {
+    state.currentOrder.push(calculateItemTotals(action.payload));
+  }
+  localStorage.setItem('pizza_current_order', JSON.stringify(state.currentOrder));
+}
+```
+
+If the pizza already exists in the cart, quantities are combined and the discount is recalculated.
+
+### 2. Updating Quantity
+
+```typescript
+updateQuantity: (state, action: PayloadAction<{ pizzaId: string; quantity: number }>) => {
+  const item = state.currentOrder.find((item) => item.pizza.id === action.payload.pizzaId);
+  if (item) {
+    item.quantity = action.payload.quantity;
+    const updatedItem = calculateItemTotals(item);
+    Object.assign(item, updatedItem);
+  }
+  localStorage.setItem('pizza_current_order', JSON.stringify(state.currentOrder));
+}
+```
+
+When quantity changes (via increment/decrement buttons), the discount dynamically updates.
+
+### 3. Direct Item Addition
+
+When a new pizza is added to the cart, it's immediately run through `calculateItemTotals`.
+
+## Real-Time Updates
+
+Discounts are calculated **immediately** whenever the cart changes:
+
+- No checkout required to see savings
+- Discount appears as soon as the 3rd item is added
+- Removing items below the threshold removes the discount instantly
+
+<Tip>
+The discount threshold of 3 items creates a clear incentive: "Buy 3, save 10%". This is more effective than complex tiered discounts and easier for customers to understand.
+</Tip>
+
+## Example Scenarios
+
+### Scenario 1: Single Pizza Type
+
+**Order**: 4x Margherita Pizza @ $12.00 each
+
+```
+Original Line Price: $12.00 × 4 = $48.00
+Discount Amount: $48.00 × 0.10 = $4.80
+Final Line Total: $48.00 - $4.80 = $43.20
+```
+
+**Savings: $4.80 (10%)**
+
+### Scenario 2: Multiple Pizza Types
+
+**Order**:
+- 5x Pepperoni @ $15.00 each
+- 2x Vegetarian @ $13.00 each
+
+```
+Pepperoni:
+  Original: $15.00 × 5 = $75.00
+  Discount: $75.00 × 0.10 = $7.50 ✓ (quantity >= 3)
+  Final: $67.50
+
+Vegetarian:
+  Original: $13.00 × 2 = $26.00
+  Discount: $0.00 ✗ (quantity < 3)
+  Final: $26.00
+
+Total Savings: $7.50
+```
+
+Only the Pepperoni line qualifies for the discount.
+
+### Scenario 3: Exactly 3 Items (Edge Case)
+
+**Order**: 3x Hawaiian @ $14.00 each
+
+```
+Original Line Price: $14.00 × 3 = $42.00
+Discount Amount: $42.00 × 0.10 = $4.20
+Final Line Total: $37.80
+```
+
+The `>=` operator ensures that exactly 3 items qualifies for the discount.
+
+## Order Totals
+
+When an order is finalized, the complete order includes:
+
+```typescript
+export interface Order {
+  id: string;
+  items: OrderItem[];        // Each with individual discounts
+  subtotal: number;          // Sum of originalLinePrice
+  totalDiscount: number;     // Sum of all discountAmount
+  finalTotal: number;        // Sum of all finalLineTotal
+  timestamp: string;
+}
+```
+
+The `totalDiscount` aggregates savings across all line items that qualified.
+
+## Persistence
+
+Current cart state (including calculated discounts) is saved to localStorage:
+
+```typescript
+localStorage.setItem('pizza_current_order', JSON.stringify(state.currentOrder));
+```
+
+**Key**: `pizza_current_order`
+
+When the app reloads, the full `OrderItem` structure (including `discountAmount` and `finalLineTotal`) is restored, so customers don't lose their calculated savings.
+
+## UI Display Considerations
+
+While the discount logic is in Redux, the UI typically shows:
+
+- Original price per item
+- Quantity
+- Line total (discounted if applicable)
+- Discount badge or indicator when discount is active
+- Total savings in the order summary
+
+<Note>
+The actual discount amount is stored in the state, but displaying it prominently in the UI helps customers understand the value they're receiving and may encourage them to add more items to reach the threshold.
+</Note>
+
+## Why 10% at 3+ Items?
+
+This threshold was chosen because:
+
+1. **Psychological Impact**: Simple, easy-to-understand rule
+2. **Business Value**: Encourages bulk orders without excessive margin loss
+3. **UX Clarity**: No complex tiers or calculations to confuse customers
+4. **Incremental Incentive**: Customers with 2 items are motivated to add a 3rd
+
+## Extensibility
+
+To modify the discount logic, update the `calculateItemTotals` function:
+
+```typescript
+// Example: 15% off for 5+ items
+if (item.quantity >= 5) {
+  discountAmount = originalLinePrice * 0.15;
+} else if (item.quantity >= 3) {
+  discountAmount = originalLinePrice * 0.10;
+}
+```
+
+Or add category-specific discounts:
+
+```typescript
+if (item.quantity >= 3) {
+  // Extra discount for vegetarian pizzas
+  const rate = item.pizza.category === 'Vegetarian' ? 0.15 : 0.10;
+  discountAmount = originalLinePrice * rate;
+}
+```
+
+## Testing the Discount Logic
+
+Key test cases:
+
+- [ ] Quantity = 2: No discount applied
+- [ ] Quantity = 3: Exactly 10% discount
+- [ ] Quantity = 10: 10% discount (not tiered)
+- [ ] Multiple items: Each calculated independently
+- [ ] Increment from 2 → 3: Discount appears
+- [ ] Decrement from 3 → 2: Discount disappears
+- [ ] Persistence: Reload page, discount values intact
+
+## Related Files
+
+- `src/store/orderSlice.ts:27-44` - Discount calculation function
+- `src/store/orderSlice.ts:53-78` - Actions that trigger recalculation
+- `src/types/order.ts:3-9` - OrderItem interface

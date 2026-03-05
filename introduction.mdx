@@ -1,0 +1,97 @@
+---
+title: "Introduction"
+description: "Welcome to Pizza Chef Frontend - A premium React SPA for ordering pizzas with modern state management and advanced features"
+---
+
+## Overview
+
+Pizza Chef Frontend is a high-performance Single Page Application built with **React 19**, **TypeScript**, and **Redux Toolkit**. This premium pizza ordering system demonstrates modern frontend architecture with sophisticated state management, real-time filtering, automatic discount calculations, and rich analytics.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture/overview">
+    Explore the technical architecture
+  </Card>
+  <Card title="Components" icon="puzzle-piece" href="/components/overview">
+    Browse the component library
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/pizza-slice">
+    Redux store and type definitions
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="Redux Toolkit State Management" icon="database">
+    Centralized state management with Redux Toolkit, featuring localStorage persistence for cart, order history, custom pizzas, and user preferences.
+  </Accordion>
+  
+  <Accordion title="Advanced Filtering & Search" icon="filter">
+    Real-time search, category filtering, price range controls, and multi-dimensional sorting (name, price) with instant UI updates.
+  </Accordion>
+  
+  <Accordion title="Automatic Bulk Discounts" icon="tags">
+    Smart discount engine that automatically applies 10% off when ordering 3 or more of the same pizza, with real-time price recalculation.
+  </Accordion>
+  
+  <Accordion title="Custom Pizza Creation" icon="pizza-slice">
+    Full-featured form with React Hook Form and Zod validation, live preview card, and immediate catalog integration.
+  </Accordion>
+  
+  <Accordion title="Analytics Dashboard" icon="chart-line">
+    Business intelligence powered by Recharts, showing price distributions and order patterns with interactive visualizations.
+  </Accordion>
+  
+  <Accordion title="Modern Design System" icon="palette">
+    Glassmorphism aesthetic with Tailwind CSS 4.0, Framer Motion animations, responsive mobile-first layout, and Lucide React icons.
+  </Accordion>
+</AccordionGroup>
+
+## Tech Stack
+
+The application is built with cutting-edge frontend technologies:
+
+- **Core Framework**: React 19 with TypeScript and Vite
+- **State Management**: Redux Toolkit with React Redux
+- **Routing**: React Router DOM 7
+- **Styling**: Tailwind CSS 4.0 with custom design tokens
+- **Forms**: React Hook Form with Zod schema validation
+- **Charts**: Recharts for data visualization
+- **Animations**: Framer Motion for smooth transitions
+- **Icons**: Lucide React
+- **Testing**: Vitest with React Testing Library
+
+## Project Architecture
+
+The application follows a modular architecture with clear separation of concerns:
+
+```
+src/
+├── components/     # Reusable UI components
+│   ├── dashboard/  # Analytics components
+│   ├── layout/     # Layout and navigation
+│   ├── order/      # Order management UI
+│   └── pizza/      # Pizza catalog components
+├── pages/          # Route-level page components
+├── store/          # Redux slices and configuration
+├── types/          # TypeScript type definitions
+└── data/           # Static data and mock content
+```
+
+## What Makes It Special
+
+This isn't just another React tutorial project. Pizza Chef Frontend showcases production-ready patterns:
+
+- **Type Safety**: Full TypeScript coverage with strict mode enabled
+- **Data Persistence**: Industry-standard localStorage integration for seamless user experience
+- **Business Logic**: Real-world discount calculations with line-item granularity
+- **Testing**: Comprehensive test suite with Vitest and React Testing Library
+- **Performance**: Optimized bundle size with Vite's code splitting
+- **UX Polish**: Micro-interactions, loading states, and error handling throughout
+
+<Card title="View on GitHub" icon="github" href="https://github.com/Ashtin18/frontend-challenge">
+  Star the repository and explore the source code
+</Card>

@@ -1,0 +1,219 @@
+---
+title: Component Library Overview
+description: Comprehensive guide to the Pizza Chef Frontend component architecture and organization
+---
+
+## Introduction
+
+The Pizza Chef Frontend component library provides a modern, performant set of React components built with TypeScript, Redux, and Tailwind CSS. The architecture emphasizes type safety, state management, and responsive design patterns.
+
+## Component Architecture
+
+Components are organized by feature domain, following a clear separation of concerns:
+
+```
+src/components/
+├── pizza/          # Pizza browsing and display
+│   ├── PizzaCard.tsx
+│   └── PizzaFilters.tsx
+├── order/          # Order management
+│   └── OrderSummary.tsx
+└── dashboard/      # Analytics and reporting
+    └── Analytics.tsx
+```
+
+## Technology Stack
+
+<CardGroup cols={2}>
+  <Card title="React 18" icon="react">
+    Functional components with hooks for state and lifecycle management
+  </Card>
+  <Card title="TypeScript" icon="code">
+    Full type safety with strict mode enabled
+  </Card>
+  <Card title="Redux Toolkit" icon="database">
+    Centralized state management with typed hooks
+  </Card>
+  <Card title="Tailwind CSS" icon="paintbrush">
+    Utility-first styling with custom design system
+  </Card>
+</CardGroup>
+
+## State Management
+
+All components integrate with Redux using typed hooks from `store/index.ts`:
+
+```typescript
+import { useAppDispatch, useAppSelector } from '../../store/index.ts';
+
+// Type-safe Redux dispatch
+const dispatch = useAppDispatch();
+
+// Type-safe Redux selectors
+const state = useAppSelector((state) => state.pizza);
+```
+
+### Redux Slices
+
+- **pizzaSlice**: Manages pizza catalog, filters, and search state
+- **orderSlice**: Handles current order, order history, and loading states
+
+## Core Components
+
+### Pizza Components
+
+<Card title="PizzaCard" href="/components/pizza-card">
+  Interactive card component for displaying individual pizzas with add-to-order functionality
+</Card>
+
+<Card title="PizzaFilters" href="/components/pizza-filters">
+  Comprehensive filtering system with search, category, price range, and sorting controls
+</Card>
+
+### Order Components
+
+<Card title="OrderSummary" href="/components/order-summary">
+  Real-time order management with quantity controls, discount calculation, and checkout
+</Card>
+
+### Dashboard Components
+
+<Card title="Analytics" href="/components/analytics">
+  Data visualization dashboard with revenue metrics and order distribution charts
+</Card>
+
+## Type System
+
+All components use strongly-typed interfaces from `src/types/`:
+
+```typescript
+// Core pizza type
+export interface Pizza {
+  id: string;
+  name: string;
+  price: number;
+  ingredients: string[];
+  category: 'Vegetarian' | 'Meat' | 'Seafood' | 'Spicy';
+  imageUrl: string;
+  isRecommended?: boolean;
+}
+
+// Order item with pricing calculations
+export interface OrderItem {
+  pizza: Pizza;
+  quantity: number;
+  originalLinePrice: number;
+  discountAmount: number;
+  finalLineTotal: number;
+}
+```
+
+## Design Patterns
+
+### Animation & Motion
+
+Components use Framer Motion for smooth transitions:
+
+```typescript
+import { motion, AnimatePresence } from 'framer-motion';
+
+<AnimatePresence mode="popLayout">
+  {items.map((item) => (
+    <motion.div
+      key={item.id}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+    >
+      {/* Content */}
+    </motion.div>
+  ))}
+</AnimatePresence>
+```
+
+### Icon System
+
+Lucide React provides consistent iconography:
+
+```typescript
+import { Plus, Trash2, CheckCircle } from 'lucide-react';
+
+<Plus size={18} />
+<CheckCircle className="animate-bounce" />
+```
+
+### Responsive Design
+
+Tailwind breakpoints enable mobile-first responsive layouts:
+
+```typescript
+className="flex flex-col lg:flex-row gap-6"
+```
+
+## Styling Conventions
+
+### Glass Morphism
+
+Many components use backdrop blur effects:
+
+```css
+bg-white/60 backdrop-blur-md border border-white/20 shadow-xl
+```
+
+### Interactive States
+
+Hover and active states provide tactile feedback:
+
+```css
+hover:shadow-xl transition-all duration-300 active:scale-95
+```
+
+### Color System
+
+- **Primary**: Orange (`orange-500`, `orange-600`)
+- **Success**: Green (`green-500`, `green-600`)
+- **Danger**: Red (`red-500`)
+- **Neutral**: Gray scale (`gray-50` to `gray-900`)
+
+## Navigation
+
+Components use React Router for client-side navigation:
+
+```typescript
+import { useNavigate } from 'react-router-dom';
+
+const navigate = useNavigate();
+navigate(`/pizza/${pizza.id}`);
+```
+
+## Performance Optimizations
+
+- **Lazy animations**: Components animate only on user interaction
+- **Memoized selectors**: Redux selectors prevent unnecessary re-renders
+- **Conditional rendering**: Empty states and loading states reduce DOM complexity
+- **Debounced inputs**: Search and filter inputs minimize Redux updates
+
+## Accessibility
+
+- Semantic HTML elements (`button`, `input`, `select`)
+- ARIA-compliant form controls
+- Keyboard navigation support
+- Focus states on interactive elements
+- Color contrast meets WCAG standards
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="PizzaCard Component" href="/components/pizza-card" icon="square">
+    Learn about the interactive pizza display card
+  </Card>
+  <Card title="PizzaFilters Component" href="/components/pizza-filters" icon="filter">
+    Explore the filtering and search system
+  </Card>
+  <Card title="OrderSummary Component" href="/components/order-summary" icon="shopping-cart">
+    Understand order management and checkout
+  </Card>
+  <Card title="Analytics Component" href="/components/analytics" icon="chart-bar">
+    Dive into data visualization patterns
+  </Card>
+</CardGroup>

@@ -1,0 +1,432 @@
+---
+title: Production Build Process
+description: Build and optimize the Pizza Chef Frontend for production deployment
+---
+
+## Overview
+
+The Pizza Chef Frontend uses **Vite** for creating optimized production builds. This guide covers the build process, optimization strategies, and deployment preparation.
+
+## Build Command
+
+Create a production-ready build:
+
+```bash
+npm run build
+```
+
+This command executes two sequential operations:
+
+1. **TypeScript Compilation**: `tsc -b` - Builds TypeScript project references
+2. **Vite Build**: `vite build` - Creates optimized production bundle
+
+## Build Process Breakdown
+
+### Step 1: TypeScript Type Checking
+
+The `tsc -b` command performs:
+
+- **Type checking**: Validates all TypeScript code
+- **Project references**: Builds using TypeScript project references
+- **No emit**: Only checks types (Vite handles transpilation)
+
+If type errors exist, the build will fail before bundling. This ensures type safety in production.
+
+### Step 2: Vite Production Build
+
+Vite performs several optimizations:
+
+#### Code Splitting
+
+Vite automatically splits code into:
+- **Vendor chunks**: Third-party libraries (React, Redux, etc.)
+- **Route chunks**: Components loaded per route
+- **Shared chunks**: Common code across multiple routes
+
+This reduces initial bundle size and improves caching.
+
+#### Minification
+
+JavaScript and CSS are minified using:
+- **esbuild**: Fast JavaScript minification
+- **CSS minification**: Removes whitespace, comments, and unused rules
+- **Tree shaking**: Removes unused code from bundles
+
+#### Asset Optimization
+
+- **Hash-based filenames**: `main-[hash].js` for cache busting
+- **Asset inlining**: Small files embedded as base64 URLs
+- **Image optimization**: Optimized asset delivery
+
+## Build Output
+
+The build process creates a `dist/` directory:
+
+```
+dist/
+├── index.html              # Entry HTML with asset references
+├── assets/
+│   ├── index-[hash].js     # Main application bundle
+│   ├── index-[hash].css    # Compiled styles
+│   ├── vendor-[hash].js    # Third-party libraries
+│   └── [route]-[hash].js   # Route-based chunks
+└── [other-static-assets]   # Images, fonts, etc.
+```
+
+## Vite Configuration
+
+The build is configured in `vite.config.ts`:
+
+```typescript vite.config.ts
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react-swc'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+  },
+})
+```
+
+### Plugin Breakdown
+
+#### @vitejs/plugin-react-swc
+
+Provides React support with SWC (Speedy Web Compiler):
+
+- **Fast transpilation**: SWC is 20x faster than Babel
+- **React Fast Refresh**: Hot module replacement for React
+- **JSX transformation**: Converts JSX to JavaScript
+- **TypeScript support**: Native TypeScript compilation
+
+Benefits:
+- Faster development builds
+- Faster production builds
+- Smaller bundle sizes
+
+#### @tailwindcss/vite
+
+Integrates Tailwind CSS 4.0:
+
+- **JIT compilation**: On-demand CSS generation
+- **Automatic purging**: Removes unused CSS in production
+- **PostCSS integration**: Processes Tailwind directives
+- **Fast rebuilds**: Incremental CSS generation
+
+Production optimizations:
+- Removes unused utility classes
+- Minifies CSS output
+- Generates optimized selectors
+
+## Preview Production Build
+
+Test the production build locally:
+
+```bash
+npm run preview
+```
+
+This command:
+1. Serves the `dist/` directory
+2. Simulates production environment
+3. Enables HTTPS testing (if configured)
+4. Verifies asset loading
+
+The preview server runs on `http://localhost:4173` by default.
+
+## Build Optimization Strategies
+
+### 1. Bundle Size Analysis
+
+Analyze bundle composition:
+
+```bash
+npx vite-bundle-visualizer
+```
+
+This generates an interactive visualization showing:
+- Size of each dependency
+- Chunk composition
+- Largest modules
+
+### 2. Dynamic Imports
+
+Reduce initial bundle size with route-based code splitting:
+
+```typescript
+import { lazy } from 'react';
+
+const Analytics = lazy(() => import('./pages/Analytics'));
+const CreatePizza = lazy(() => import('./pages/CreatePizza'));
+```
+
+React Router automatically handles lazy-loaded components.
+
+### 3. Tree Shaking
+
+Ensure tree shaking works effectively:
+
+```typescript
+// ✅ Good - named imports enable tree shaking
+import { useState, useEffect } from 'react';
+
+// ❌ Bad - imports entire library
+import * as React from 'react';
+```
+
+### 4. External Dependencies
+
+For CDN-hosted libraries, externalize them:
+
+```typescript vite.config.ts
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      external: ['react', 'react-dom'],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+        },
+      },
+    },
+  },
+});
+```
+
+## Environment Variables
+
+### Development vs Production
+
+Vite exposes environment-specific variables:
+
+```typescript
+if (import.meta.env.PROD) {
+  // Production-only code
+  console.log = () => {}; // Disable logging
+}
+
+if (import.meta.env.DEV) {
+  // Development-only code
+  console.log('Debug info:', data);
+}
+```
+
+### Environment Files
+
+Create `.env` files for different environments:
+
+```bash
+.env                # Loaded in all cases
+.env.local          # Local overrides (gitignored)
+.env.production     # Production-specific variables
+.env.development    # Development-specific variables
+```
+
+Example `.env.production`:
+
+```bash
+VITE_API_URL=https://api.pizzachef.com
+VITE_ENABLE_ANALYTICS=true
+```
+
+Access in code:
+
+```typescript
+const apiUrl = import.meta.env.VITE_API_URL;
+```
+
+## Build Performance
+
+### SWC vs Babel
+
+The project uses `@vitejs/plugin-react-swc` instead of `@vitejs/plugin-react` for:
+
+- **20x faster compilation**: SWC is written in Rust
+- **Smaller bundle sizes**: More efficient code generation
+- **Better tree shaking**: More accurate dead code elimination
+
+### Dependency Pre-bundling
+
+Vite pre-bundles dependencies for faster builds:
+
+- Converts CommonJS to ESM
+- Combines multiple modules
+- Caches in `node_modules/.vite/`
+
+Force re-optimization:
+
+```bash
+rm -rf node_modules/.vite
+npm run dev
+```
+
+## Production Checklist
+
+Before deploying to production:
+
+<Steps>
+
+<Step title="Run type checking">
+  Ensure no TypeScript errors:
+  
+  ```bash
+  npx tsc --noEmit
+  ```
+</Step>
+
+<Step title="Run linter">
+  Check code quality:
+  
+  ```bash
+  npm run lint
+  ```
+</Step>
+
+<Step title="Run tests">
+  Verify all tests pass:
+  
+  ```bash
+  npm run test -- --run
+  ```
+</Step>
+
+<Step title="Build production bundle">
+  Create optimized build:
+  
+  ```bash
+  npm run build
+  ```
+</Step>
+
+<Step title="Preview production build">
+  Test locally:
+  
+  ```bash
+  npm run preview
+  ```
+</Step>
+
+<Step title="Verify bundle size">
+  Check bundle analyzer for anomalies:
+  
+  ```bash
+  npx vite-bundle-visualizer
+  ```
+</Step>
+
+</Steps>
+
+## Deployment Targets
+
+### Static Hosting (Vercel, Netlify)
+
+The `dist/` directory contains static files ready for deployment:
+
+```bash
+# Build command
+npm run build
+
+# Output directory
+dist
+
+# Install command
+npm install
+```
+
+### Docker Deployment
+
+Example `Dockerfile` for containerized deployment:
+
+```dockerfile
+# Build stage
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### S3 + CloudFront
+
+Deploy to AWS:
+
+```bash
+# Build
+npm run build
+
+# Upload to S3
+aws s3 sync dist/ s3://your-bucket-name --delete
+
+# Invalidate CloudFront cache
+aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
+```
+
+## Build Troubleshooting
+
+### Out of Memory Errors
+
+Increase Node.js memory limit:
+
+```bash
+NODE_OPTIONS="--max-old-space-size=4096" npm run build
+```
+
+### Slow Build Times
+
+Optimize build performance:
+
+1. **Update dependencies**: Ensure Vite and plugins are latest versions
+2. **Clear cache**: Delete `node_modules/.vite/` and rebuild
+3. **Reduce bundle size**: Use dynamic imports for large routes
+4. **Check plugins**: Some plugins can slow builds significantly
+
+### Missing Dependencies
+
+If production build fails with missing modules:
+
+```bash
+# Verify dependencies vs devDependencies
+npm install --production
+
+# Rebuild with all dependencies
+npm install
+npm run build
+```
+
+## Build Metrics
+
+Typical build output for Pizza Chef Frontend:
+
+```
+vite v7.3.1 building for production...
+✓ 1247 modules transformed.
+dist/index.html                   0.52 kB │ gzip:  0.31 kB
+dist/assets/index-Dk2SyRgQ.css   45.23 kB │ gzip: 10.12 kB
+dist/assets/index-BqW3kLfR.js   287.45 kB │ gzip: 92.18 kB
+✓ built in 3.42s
+```
+
+**Performance targets:**
+- **Build time**: < 5 seconds for initial build
+- **Main bundle**: < 100 kB gzipped
+- **Total CSS**: < 15 kB gzipped
+- **Vendor chunk**: < 150 kB gzipped
+
+## Next Steps
+
+- Review [Development Setup](/development/setup) for local environment
+- Check [Testing Guide](/development/testing) for quality assurance
+- Explore Vite's [build optimizations](https://vitejs.dev/guide/build.html) documentation
+- Configure CI/CD pipelines for automated deployments

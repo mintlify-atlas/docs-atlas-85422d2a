@@ -1,0 +1,390 @@
+---
+title: 'Order Types'
+description: 'TypeScript type definitions for order and cart data structures'
+---
+
+## Overview
+
+This module defines TypeScript interfaces for order-related data structures, including shopping cart items and completed orders with pricing calculations.
+
+## Types
+
+### OrderItem
+
+Represents a single line item in a shopping cart or order, including pricing calculations and discounts.
+
+```typescript
+interface OrderItem {
+  pizza: Pizza;
+  quantity: number;
+  originalLinePrice: number;
+  discountAmount: number;
+  finalLineTotal: number;
+}
+```
+
+<ResponseField name="pizza" type="Pizza" required>
+  The pizza object for this line item. See [Pizza Types](/api/types/pizza) for the complete Pizza interface.
+</ResponseField>
+
+<ResponseField name="quantity" type="number" required>
+  Number of this pizza ordered. Must be a positive integer.
+</ResponseField>
+
+<ResponseField name="originalLinePrice" type="number" required>
+  Line total before discounts, calculated as `pizza.price * quantity`.
+</ResponseField>
+
+<ResponseField name="discountAmount" type="number" required>
+  Total discount applied to this line item. Currently 10% of originalLinePrice when quantity ≥ 3, otherwise 0.
+</ResponseField>
+
+<ResponseField name="finalLineTotal" type="number" required>
+  Final price for this line after discounts, calculated as `originalLinePrice - discountAmount`.
+</ResponseField>
+
+**Example:**
+
+```typescript
+import type { OrderItem, Pizza } from './types';
+
+const pizza: Pizza = {
+  id: "pizza-001",
+  name: "Margherita",
+  price: 15.00,
+  ingredients: ["Tomato", "Mozzarella", "Basil"],
+  category: "Vegetarian",
+  imageUrl: "/images/margherita.jpg"
+};
+
+// Order 2 pizzas (no discount)
+const orderItem1: OrderItem = {
+  pizza,
+  quantity: 2,
+  originalLinePrice: 30.00,  // 15 * 2
+  discountAmount: 0,          // No discount (quantity < 3)
+  finalLineTotal: 30.00       // 30 - 0
+};
+
+// Order 4 pizzas (10% discount)
+const orderItem2: OrderItem = {
+  pizza,
+  quantity: 4,
+  originalLinePrice: 60.00,   // 15 * 4
+  discountAmount: 6.00,       // 60 * 0.1 (10% for 3+)
+  finalLineTotal: 54.00       // 60 - 6
+};
+```
+
+**Pricing Calculation Logic:**
+
+```typescript
+function calculateOrderItem(pizza: Pizza, quantity: number): OrderItem {
+  const originalLinePrice = pizza.price * quantity;
+  let discountAmount = 0;
+  
+  // 10% discount for 3 or more of the same pizza
+  if (quantity >= 3) {
+    discountAmount = originalLinePrice * 0.1;
+  }
+  
+  const finalLineTotal = originalLinePrice - discountAmount;
+  
+  return {
+    pizza,
+    quantity,
+    originalLinePrice,
+    discountAmount,
+    finalLineTotal
+  };
+}
+```
+
+---
+
+### Order
+
+Represents a completed order with all items and calculated totals.
+
+```typescript
+interface Order {
+  id: string;
+  items: OrderItem[];
+  subtotal: number;
+  totalDiscount: number;
+  finalTotal: number;
+  timestamp: string;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the order. Typically generated as `order-${timestamp}` or a UUID.
+</ResponseField>
+
+<ResponseField name="items" type="OrderItem[]" required>
+  Array of all items in the order. Each item includes its own pricing calculations.
+</ResponseField>
+
+<ResponseField name="subtotal" type="number" required>
+  Sum of all `originalLinePrice` values before discounts. Calculated as: `items.reduce((sum, item) => sum + item.originalLinePrice, 0)`
+</ResponseField>
+
+<ResponseField name="totalDiscount" type="number" required>
+  Sum of all discount amounts across all items. Calculated as: `items.reduce((sum, item) => sum + item.discountAmount, 0)`
+</ResponseField>
+
+<ResponseField name="finalTotal" type="number" required>
+  Total amount after all discounts. Calculated as: `items.reduce((sum, item) => sum + item.finalLineTotal, 0)` or `subtotal - totalDiscount`
+</ResponseField>
+
+<ResponseField name="timestamp" type="string" required>
+  ISO 8601 timestamp of when the order was placed (e.g., `"2026-03-05T14:30:00.000Z"`). Generated using `new Date().toISOString()`.
+</ResponseField>
+
+**Example:**
+
+```typescript
+import type { Order, OrderItem } from './types';
+
+const order: Order = {
+  id: "order-1709653800000",
+  items: [
+    {
+      pizza: {
+        id: "pizza-001",
+        name: "Margherita",
+        price: 15.00,
+        ingredients: ["Tomato", "Mozzarella", "Basil"],
+        category: "Vegetarian",
+        imageUrl: "/images/margherita.jpg"
+      },
+      quantity: 3,
+      originalLinePrice: 45.00,
+      discountAmount: 4.50,
+      finalLineTotal: 40.50
+    },
+    {
+      pizza: {
+        id: "pizza-002",
+        name: "Pepperoni",
+        price: 18.00,
+        ingredients: ["Tomato", "Mozzarella", "Pepperoni"],
+        category: "Meat",
+        imageUrl: "/images/pepperoni.jpg"
+      },
+      quantity: 2,
+      originalLinePrice: 36.00,
+      discountAmount: 0,
+      finalLineTotal: 36.00
+    }
+  ],
+  subtotal: 81.00,        // 45 + 36
+  totalDiscount: 4.50,    // 4.50 + 0
+  finalTotal: 76.50,      // 81 - 4.50
+  timestamp: "2026-03-05T14:30:00.000Z"
+};
+```
+
+**Order Calculation Helper:**
+
+```typescript
+import type { Order, OrderItem } from './types';
+
+function createOrder(items: OrderItem[]): Order {
+  const subtotal = items.reduce((sum, item) => sum + item.originalLinePrice, 0);
+  const totalDiscount = items.reduce((sum, item) => sum + item.discountAmount, 0);
+  const finalTotal = items.reduce((sum, item) => sum + item.finalLineTotal, 0);
+  
+  return {
+    id: `order-${Date.now()}`,
+    items,
+    subtotal,
+    totalDiscount,
+    finalTotal,
+    timestamp: new Date().toISOString()
+  };
+}
+
+// Usage
+const currentCart: OrderItem[] = [
+  // ... cart items
+];
+
+const completedOrder = createOrder(currentCart);
+```
+
+## Usage Patterns
+
+### Cart Totals Calculation
+
+```typescript
+import type { OrderItem } from './types';
+
+interface CartTotals {
+  itemCount: number;
+  subtotal: number;
+  totalDiscount: number;
+  finalTotal: number;
+  averageDiscount: number;
+}
+
+function calculateCartTotals(items: OrderItem[]): CartTotals {
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.originalLinePrice, 0);
+  const totalDiscount = items.reduce((sum, item) => sum + item.discountAmount, 0);
+  const finalTotal = items.reduce((sum, item) => sum + item.finalLineTotal, 0);
+  const averageDiscount = subtotal > 0 ? (totalDiscount / subtotal) * 100 : 0;
+  
+  return {
+    itemCount,
+    subtotal,
+    totalDiscount,
+    finalTotal,
+    averageDiscount
+  };
+}
+
+// Usage in React component
+import { useSelector } from 'react-redux';
+import type { RootState } from './store';
+
+const CartSummary = () => {
+  const items = useSelector((state: RootState) => state.order.currentOrder);
+  const totals = calculateCartTotals(items);
+  
+  return (
+    <div>
+      <p>Items: {totals.itemCount}</p>
+      <p>Subtotal: ${totals.subtotal.toFixed(2)}</p>
+      <p>Discount: -${totals.totalDiscount.toFixed(2)} ({totals.averageDiscount.toFixed(1)}%)</p>
+      <p>Total: ${totals.finalTotal.toFixed(2)}</p>
+    </div>
+  );
+};
+```
+
+### Order History Display
+
+```typescript
+import type { Order } from './types';
+
+function formatOrderSummary(order: Order): string {
+  const date = new Date(order.timestamp).toLocaleDateString();
+  const time = new Date(order.timestamp).toLocaleTimeString();
+  const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  
+  return `Order #${order.id.split('-')[1]} - ${date} ${time} - ${itemCount} items - $${order.finalTotal.toFixed(2)}`;
+}
+
+function getOrderStats(orders: Order[]) {
+  const totalOrders = orders.length;
+  const totalSpent = orders.reduce((sum, order) => sum + order.finalTotal, 0);
+  const totalSavings = orders.reduce((sum, order) => sum + order.totalDiscount, 0);
+  const averageOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
+  
+  return {
+    totalOrders,
+    totalSpent,
+    totalSavings,
+    averageOrderValue
+  };
+}
+
+// Usage
+import { useSelector } from 'react-redux';
+import type { RootState } from './store';
+
+const OrderHistory = () => {
+  const orders = useSelector((state: RootState) => state.order.orderHistory);
+  const stats = getOrderStats(orders);
+  
+  return (
+    <div>
+      <h2>Order History</h2>
+      <div>
+        <p>Total Orders: {stats.totalOrders}</p>
+        <p>Total Spent: ${stats.totalSpent.toFixed(2)}</p>
+        <p>Total Savings: ${stats.totalSavings.toFixed(2)}</p>
+        <p>Average Order: ${stats.averageOrderValue.toFixed(2)}</p>
+      </div>
+      <ul>
+        {orders.map(order => (
+          <li key={order.id}>{formatOrderSummary(order)}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+```
+
+### Type Guards
+
+```typescript
+import type { OrderItem, Order } from './types';
+
+function isOrderItem(obj: any): obj is OrderItem {
+  return (
+    typeof obj === 'object' &&
+    obj.pizza !== undefined &&
+    typeof obj.quantity === 'number' &&
+    typeof obj.originalLinePrice === 'number' &&
+    typeof obj.discountAmount === 'number' &&
+    typeof obj.finalLineTotal === 'number'
+  );
+}
+
+function isOrder(obj: any): obj is Order {
+  return (
+    typeof obj === 'object' &&
+    typeof obj.id === 'string' &&
+    Array.isArray(obj.items) &&
+    obj.items.every(isOrderItem) &&
+    typeof obj.subtotal === 'number' &&
+    typeof obj.totalDiscount === 'number' &&
+    typeof obj.finalTotal === 'number' &&
+    typeof obj.timestamp === 'string'
+  );
+}
+
+// Usage for validation when loading from localStorage
+function loadOrders(): Order[] {
+  const saved = localStorage.getItem('pizza_orders');
+  if (!saved) return [];
+  
+  try {
+    const parsed = JSON.parse(saved);
+    if (Array.isArray(parsed) && parsed.every(isOrder)) {
+      return parsed;
+    }
+  } catch (error) {
+    console.error('Failed to load orders:', error);
+  }
+  
+  return [];
+}
+```
+
+## Discount Rules
+
+The order system implements automatic discounts at the line item level:
+
+**Current Discount Policy:**
+- **Trigger**: 3 or more of the same pizza
+- **Amount**: 10% off the line total
+- **Calculation**: `discountAmount = originalLinePrice * 0.1`
+
+**Examples:**
+
+| Quantity | Price | Original | Discount | Final |
+|----------|-------|----------|----------|-------|
+| 1        | $15   | $15      | $0       | $15   |
+| 2        | $15   | $30      | $0       | $30   |
+| 3        | $15   | $45      | $4.50    | $40.50|
+| 4        | $15   | $60      | $6       | $54   |
+| 5        | $15   | $75      | $7.50    | $67.50|
+
+**Important Notes:**
+- Discounts apply per line item, not to the entire order
+- Each pizza type is evaluated independently
+- Discounts are automatically recalculated when quantities change
+- The 10% rate is hardcoded in the `calculateItemTotals` function in `orderSlice.ts`

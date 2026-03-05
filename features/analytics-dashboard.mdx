@@ -1,0 +1,417 @@
+---
+title: Analytics Dashboard
+description: Business intelligence with revenue metrics, price comparisons, and order distribution charts
+---
+
+# Analytics Dashboard
+
+The Analytics Dashboard provides comprehensive business intelligence for the Pizza Chef application. It visualizes key metrics including revenue, order statistics, price comparisons, and category distribution using Recharts.
+
+## Overview
+
+The analytics system is built with:
+
+- **Data Source**: Redux store (`orderHistory` and `pizzas`)
+- **Charts Library**: Recharts
+- **Real-Time Updates**: Automatically reflects new orders
+- **Responsive Design**: Adapts to all screen sizes
+
+## Component Structure
+
+The main analytics component (`Analytics.tsx`) pulls data from the Redux store:
+
+```typescript
+const { pizzas } = useAppSelector((state) => state.pizza);
+const { orderHistory } = useAppSelector((state) => state.order);
+```
+
+## Summary Statistics
+
+Three key performance indicators are calculated and displayed:
+
+### Total Revenue
+
+```typescript
+const totalRevenue = orderHistory.reduce((acc, order) => acc + order.finalTotal, 0);
+```
+
+Sums the `finalTotal` (post-discount) from all completed orders.
+
+**Display**: 
+```tsx
+<p className="text-2xl font-black">${totalRevenue.toFixed(2)}</p>
+```
+
+### Total Orders
+
+```typescript
+const totalOrders = orderHistory.length;
+```
+
+Simple count of completed orders in the history.
+
+### Average Order Value
+
+```typescript
+const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+```
+
+Calculates the mean order value. Returns `0` if no orders exist to avoid division by zero.
+
+<Note>
+The average order value uses the discounted `finalTotal`, not the pre-discount `subtotal`, giving a true representation of actual revenue per order.
+</Note>
+
+## Stat Cards
+
+Each KPI is displayed in an interactive card with hover animations:
+
+```tsx
+<motion.div 
+  whileHover={{ y: -5 }}
+  className="bg-white/60 backdrop-blur-md p-6 rounded-3xl"
+>
+  <div className="p-4 bg-orange-100 text-orange-600 rounded-2xl">
+    <DollarSign size={24} />
+  </div>
+  <div>
+    <p className="text-[10px] font-black uppercase">Total Revenue</p>
+    <p className="text-2xl font-black">${totalRevenue.toFixed(2)}</p>
+  </div>
+</motion.div>
+```
+
+**Icon Colors by Metric**:
+- **Total Revenue**: Orange (`bg-orange-100 text-orange-600`)
+- **Orders Confirmed**: Blue (`bg-blue-100 text-blue-600`)
+- **Avg. Order Value**: Green (`bg-green-100 text-green-600`)
+
+## Pizza Price Comparison Chart
+
+A horizontal bar chart showing all pizzas sorted by price (highest to lowest).
+
+### Data Preparation
+
+```typescript
+const priceData = pizzas.map(p => ({
+  name: p.name,
+  price: p.price
+})).sort((a, b) => b.price - a.price);
+```
+
+**Transformation**:
+1. Map each pizza to a simple `{ name, price }` object
+2. Sort descending by price (most expensive first)
+
+### Chart Implementation
+
+```tsx
+<ResponsiveContainer width="100%" height="100%">
+  <BarChart data={priceData} layout="vertical" margin={{ left: 20 }}>
+    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+    <XAxis type="number" hide />
+    <YAxis 
+      dataKey="name" 
+      type="category" 
+      axisLine={false} 
+      tickLine={false} 
+      width={100} 
+      tick={{ fontSize: 10, fontWeight: 700, fill: '#4b5563' }}
+    />
+    <Tooltip 
+      cursor={{ fill: '#fff7ed' }}
+      contentStyle={{ 
+        borderRadius: '16px', 
+        border: 'none', 
+        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+      }}
+    />
+    <Bar dataKey="price" fill="#ea580c" radius={[0, 10, 10, 0]} barSize={20} />
+  </BarChart>
+</ResponsiveContainer>
+```
+
+### Chart Configuration
+
+| Property | Value | Purpose |
+|----------|-------|----------|
+| `layout` | `vertical` | Horizontal bars with pizza names on Y-axis |
+| `XAxis type` | `number` | Price values (hidden) |
+| `YAxis type` | `category` | Pizza names |
+| `YAxis width` | `100` | Ensures names aren't truncated |
+| `Bar fill` | `#ea580c` | Orange brand color |
+| `Bar radius` | `[0, 10, 10, 0]` | Rounded right corners |
+| `barSize` | `20` | Consistent bar thickness |
+
+<Tip>
+The vertical layout makes pizza names easily readable, especially with longer names like "Quattro Formaggi Deluxe".
+</Tip>
+
+### Tooltip Styling
+
+```tsx
+contentStyle={{ 
+  borderRadius: '16px', 
+  border: 'none', 
+  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+  fontSize: '12px',
+  fontWeight: 800
+}}
+```
+
+Custom tooltip matches the app's glassmorphism design system.
+
+## Order Distribution Pie Chart
+
+Visualizes the distribution of pizzas ordered by category.
+
+### Data Aggregation
+
+```typescript
+const categoryCounts: Record<string, number> = {};
+orderHistory.forEach(order => {
+  order.items.forEach(item => {
+    const cat = item.pizza.category;
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + item.quantity;
+  });
+});
+
+const categoryData = Object.entries(categoryCounts).map(([name, value]) => ({
+  name,
+  value
+}));
+```
+
+**Algorithm**:
+1. Initialize empty category counter
+2. Iterate through all orders in history
+3. For each order, iterate through all items
+4. Extract the pizza category
+5. Add the quantity to that category's count
+6. Convert the counts object to an array of `{ name, value }` pairs
+
+**Example**:
+```javascript
+// After processing:
+categoryCounts = {
+  "Meat": 15,
+  "Vegetarian": 8,
+  "Spicy": 12,
+  "Seafood": 3
+}
+
+// Converted to:
+categoryData = [
+  { name: "Meat", value: 15 },
+  { name: "Vegetarian", value: 8 },
+  { name: "Spicy", value: 12 },
+  { name: "Seafood", value: 3 }
+]
+```
+
+### Chart Implementation
+
+```tsx
+<ResponsiveContainer width="100%" height="100%">
+  <PieChart>
+    <Pie
+      data={categoryData}
+      cx="50%"
+      cy="50%"
+      innerRadius={60}
+      outerRadius={100}
+      paddingAngle={8}
+      dataKey="value"
+    >
+      {categoryData.map((_entry, index) => (
+        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
+      ))}
+    </Pie>
+    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none' }} />
+    <Legend 
+      verticalAlign="bottom" 
+      height={36} 
+      iconType="circle"
+      formatter={(value) => (
+        <span className="text-[10px] font-black uppercase">{value}</span>
+      )}
+    />
+  </PieChart>
+</ResponsiveContainer>
+```
+
+### Chart Configuration
+
+| Property | Value | Purpose |
+|----------|-------|----------|
+| `innerRadius` | `60` | Creates donut chart effect |
+| `outerRadius` | `100` | Defines chart size |
+| `paddingAngle` | `8` | Gaps between slices |
+| `cx/cy` | `50%` | Centers the chart |
+
+### Color Palette
+
+```typescript
+const COLORS = ['#ea580c', '#f97316', '#fbbf24', '#f59e0b', '#dc2626'];
+```
+
+Orange/red color scheme matching the brand. Colors are cycled using modulo:
+
+```tsx
+fill={COLORS[index % COLORS.length]}
+```
+
+<Note>
+The color array has 5 colors, but there are only 4 categories. This provides flexibility if more categories are added in the future.
+</Note>
+
+## Empty State Handling
+
+When no orders exist yet, a placeholder is shown:
+
+```tsx
+{categoryData.length > 0 ? (
+  // Render pie chart
+) : (
+  <div className="h-full flex flex-col items-center justify-center text-gray-400">
+    <PieChartIcon size={48} strokeWidth={1} className="mb-4 opacity-20" />
+    <p className="text-sm font-bold uppercase">No orders yet</p>
+    <p className="text-[10px]">Analytics will appear here after your first order</p>
+  </div>
+)}
+```
+
+This prevents chart rendering errors and provides helpful guidance to new users.
+
+## Responsive Design
+
+The dashboard uses CSS Grid to adapt to different screen sizes:
+
+```tsx
+<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  {/* Stat cards */}
+</div>
+
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+  {/* Charts */}
+</div>
+```
+
+- **Stats**: 1 column on mobile, 3 columns on tablet+
+- **Charts**: 1 column on small screens, 2 columns on large screens
+
+## Data Persistence
+
+Analytics data is derived from:
+
+- **`pizza_orders`** localStorage key (order history)
+- **`custom_pizzas`** localStorage key (custom pizzas)
+- **`pizzas.json`** (default catalog)
+
+All analytics update automatically when new orders are placed because they directly query the Redux store, which is kept in sync with localStorage.
+
+## Performance Considerations
+
+### Calculations Run on Every Render
+
+Currently, all calculations happen inline:
+
+```typescript
+const totalRevenue = orderHistory.reduce((acc, order) => acc + order.finalTotal, 0);
+const priceData = pizzas.map(...).sort(...);
+const categoryCounts = // ... complex aggregation
+```
+
+<Tip>
+For large datasets (100+ orders), consider memoizing these calculations:
+```typescript
+const totalRevenue = useMemo(() => 
+  orderHistory.reduce((acc, order) => acc + order.finalTotal, 0),
+  [orderHistory]
+);
+```
+This prevents recalculation on unrelated re-renders.
+</Tip>
+
+## Chart Customization
+
+### Tooltip Customization
+
+Both charts use custom tooltips that match the app's design:
+
+```tsx
+<Tooltip 
+  cursor={{ fill: '#fff7ed' }}  // Hover background
+  contentStyle={{ 
+    borderRadius: '16px',        // Rounded corners
+    border: 'none',              // No border
+    boxShadow: '...',            // Shadow for depth
+    fontSize: '12px',
+    fontWeight: 800
+  }}
+/>
+```
+
+### Legend Formatting
+
+```tsx
+<Legend 
+  formatter={(value) => (
+    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">
+      {value}
+    </span>
+  )}
+/>
+```
+
+Custom formatter ensures category names match the app's typography.
+
+## Business Insights Provided
+
+1. **Revenue Tracking**: See total sales at a glance
+2. **Order Volume**: Understand customer activity levels
+3. **Average Ticket**: Identify if customers are placing small or large orders
+4. **Price Positioning**: Compare pricing across the catalog
+5. **Category Performance**: Identify which pizza types are most popular
+6. **Ordering Patterns**: Detect trends in category preferences
+
+## Future Enhancements
+
+**Potential additions**:
+- Time-series chart showing orders over time
+- Top 5 most ordered pizzas
+- Revenue by category
+- Discount impact analysis (total savings vs. revenue)
+- Month-over-month growth
+- Customer retention metrics
+
+## Page Layout
+
+The `AdminAnalytics.tsx` page wraps the Analytics component:
+
+```tsx
+<div className="py-12">
+  <div className="mb-16">
+    <h1>Business <span className="text-orange-600">Intelligence</span></h1>
+    <p>Data-driven insights for your pizza empire.</p>
+  </div>
+  
+  <Analytics />
+</div>
+```
+
+Includes decorative icon badges for visual interest:
+
+```tsx
+<div className="bg-white/70 backdrop-blur-md p-6 rounded-3xl">
+  <TrendingUp className="text-orange-600" size={24} />
+  <span className="text-[10px] font-bold uppercase">Growth</span>
+</div>
+```
+
+## Related Files
+
+- `src/components/dashboard/Analytics.tsx` - Main analytics component
+- `src/pages/AdminAnalytics.tsx:1-40` - Analytics page wrapper
+- `src/store/orderSlice.ts:11-14` - Order history loading
+- `src/types/order.ts:11-18` - Order interface

@@ -1,0 +1,441 @@
+---
+title: PizzaFilters Component
+description: Comprehensive filtering system with search, category selection, price range, and sorting controls
+---
+
+## Overview
+
+The `PizzaFilters` component provides a full-featured filtering interface for the pizza catalog. It integrates tightly with Redux to manage filter state and offers real-time filtering with search, category selection, price range control, and multi-option sorting.
+
+**Location**: `src/components/pizza/PizzaFilters.tsx`
+
+## Features
+
+- **Full-text search**: Real-time pizza name search with debouncing
+- **Category filtering**: Filter by Vegetarian, Meat, Seafood, Spicy, or all
+- **Price range slider**: Dynamic maximum price control with visual feedback
+- **Multi-option sorting**: Sort by name or price, ascending or descending
+- **Responsive layout**: Adapts from mobile to desktop with flexbox
+- **Glass morphism design**: Modern backdrop blur effects
+
+## Props
+
+This component has no props. It reads filter state directly from Redux.
+
+## Redux State
+
+### State Structure
+
+```typescript
+interface PizzaFilters {
+  search: string;
+  category: string;
+  maxPrice: number;
+  sortBy: SortOption;
+}
+
+type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+```
+
+### Redux Integration
+
+```typescript
+import { useAppDispatch, useAppSelector } from '../../store/index.ts';
+import { setSearch, setCategory, setMaxPrice, setSortBy } from '../../store/pizzaSlice.ts';
+
+const dispatch = useAppDispatch();
+const filters = useAppSelector((state) => state.pizza.filters);
+```
+
+## Usage Example
+
+```tsx
+import PizzaFilters from './components/pizza/PizzaFilters';
+import PizzaCard from './components/pizza/PizzaCard';
+import { useAppSelector } from './store';
+
+function PizzaMenu() {
+  const { pizzas, filters } = useAppSelector((state) => state.pizza);
+  
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {/* Filter controls */}
+      <PizzaFilters />
+      
+      {/* Filtered results */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {pizzas.map((pizza) => (
+          <PizzaCard key={pizza.id} pizza={pizza} />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Component Structure
+
+The component uses a responsive flex layout that stacks on mobile and flows horizontally on desktop:
+
+```tsx
+<div className="bg-white/70 backdrop-blur-md p-6 rounded-3xl border border-white/20 shadow-xl mb-12 flex flex-col lg:flex-row items-center gap-6">
+  {/* Search input - grows to fill available space */}
+  <div className="relative grow w-full">
+    {/* Search field */}
+  </div>
+
+  {/* Filter controls - wrap on mobile */}
+  <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+    {/* Category filter */}
+    {/* Price range slider */}
+    {/* Sort dropdown */}
+  </div>
+</div>
+```
+
+## Filter Controls
+
+### Search Input
+
+Full-width search field with icon:
+
+<ParamField path="search" type="string">
+  Current search query value from Redux state
+</ParamField>
+
+```tsx
+<div className="relative grow w-full">
+  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+    <Search className="h-5 w-5 text-gray-400" />
+  </div>
+  <input
+    type="text"
+    placeholder="Search for your favorite pizza..."
+    className="block w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all placeholder-gray-400"
+    value={filters.search}
+    onChange={(e) => dispatch(setSearch(e.target.value))}
+  />
+</div>
+```
+
+**Behavior**:
+- Updates Redux state on every keystroke
+- Focus ring with orange accent
+- Icon positioned with absolute positioning
+- Left padding accommodates icon
+
+### Category Filter
+
+Dropdown selector for pizza categories:
+
+<ParamField path="category" type="string">
+  Currently selected category. Options: 'all', 'Vegetarian', 'Meat', 'Seafood', 'Spicy'
+</ParamField>
+
+```typescript
+const categories = ['all', 'Vegetarian', 'Meat', 'Seafood', 'Spicy'];
+```
+
+```tsx
+<div className="flex items-center gap-2 bg-gray-50 p-1 rounded-2xl border border-gray-200">
+  <Filter className="ml-3 h-4 w-4 text-gray-400" />
+  <select
+    className="bg-transparent pl-2 pr-8 py-2 text-sm font-medium text-gray-700 outline-none appearance-none cursor-pointer"
+    value={filters.category}
+    onChange={(e) => dispatch(setCategory(e.target.value))}
+  >
+    {categories.map((cat) => (
+      <option key={cat} value={cat}>
+        {cat === 'all' ? 'All Categories' : cat}
+      </option>
+    ))}
+  </select>
+</div>
+```
+
+**Behavior**:
+- Native `<select>` with custom styling
+- Icon prefix for visual clarity
+- "All Categories" displays as "all" internally
+- Dispatches to Redux on change
+
+### Price Range Slider
+
+Interactive range slider with live value display:
+
+<ParamField path="maxPrice" type="number">
+  Maximum price threshold (0-50). Pizzas above this price are filtered out.
+</ParamField>
+
+```tsx
+<div className="flex flex-col gap-1 px-4 min-w-[150px]">
+  {/* Label with current value */}
+  <div className="flex justify-between text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+    <span>Price Range</span>
+    <span className="text-orange-600">${filters.maxPrice} max</span>
+  </div>
+  
+  {/* Range input */}
+  <input
+    type="range"
+    min="0"
+    max="50"
+    step="1"
+    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+    value={filters.maxPrice}
+    onChange={(e) => dispatch(setMaxPrice(Number(e.target.value)))}
+  />
+</div>
+```
+
+**Behavior**:
+- Range: $0 to $50
+- Step: $1 increments
+- Live value display in orange
+- Native range input with custom accent color
+- Value converted to number before dispatch
+
+### Sort Dropdown
+
+Multi-option sorting control:
+
+<ParamField path="sortBy" type="SortOption">
+  Current sort option. One of: 'name-asc', 'name-desc', 'price-asc', 'price-desc'
+</ParamField>
+
+```tsx
+<div className="flex items-center gap-2 bg-gray-50 p-1 rounded-2xl border border-gray-200 ml-auto lg:ml-0">
+  <SortAsc className="ml-3 h-4 w-4 text-gray-400" />
+  <select
+    className="bg-transparent pl-2 pr-8 py-2 text-sm font-medium text-gray-700 outline-none appearance-none cursor-pointer"
+    value={filters.sortBy}
+    onChange={(e) => dispatch(setSortBy(e.target.value as SortOption))}
+  >
+    <option value="name-asc">A - Z</option>
+    <option value="name-desc">Z - A</option>
+    <option value="price-asc">Price: Low to High</option>
+    <option value="price-desc">Price: High to Low</option>
+  </select>
+</div>
+```
+
+**Sort Options**:
+- `name-asc`: Alphabetical (A-Z)
+- `name-desc`: Reverse alphabetical (Z-A)
+- `price-asc`: Price ascending (Low to High)
+- `price-desc`: Price descending (High to Low)
+
+## Responsive Behavior
+
+### Mobile Layout (< 1024px)
+
+```css
+flex flex-col items-center gap-6
+```
+
+- Search field: Full width
+- Filter controls: Wrap horizontally with gap
+- Sort dropdown: Aligns to right with `ml-auto`
+
+### Desktop Layout (≥ 1024px)
+
+```css
+lg:flex-row
+```
+
+- Search field: Grows to fill available space
+- Filter controls: Fixed width (`lg:w-auto`)
+- All controls on single row
+
+## Visual Design
+
+### Glass Morphism Effect
+
+```css
+bg-white/70 backdrop-blur-md border border-white/20 shadow-xl
+```
+
+Creates a frosted glass appearance that works well over gradients.
+
+### Input Styling
+
+Consistent styling across all inputs:
+
+- Background: `bg-gray-50`
+- Border: `border-gray-200`
+- Focus ring: `focus:ring-2 focus:ring-orange-500/20`
+- Focus border: `focus:border-orange-500`
+- Rounded corners: `rounded-2xl`
+
+### Icon Integration
+
+All inputs have accompanying icons:
+
+- Search: `<Search />` from lucide-react
+- Category: `<Filter />`
+- Sort: `<SortAsc />`
+
+## Redux Actions
+
+The component dispatches these actions:
+
+<ParamField path="setSearch" type="(search: string) => void">
+  Updates the search query in Redux state
+</ParamField>
+
+<ParamField path="setCategory" type="(category: string) => void">
+  Updates the selected category filter
+</ParamField>
+
+<ParamField path="setMaxPrice" type="(maxPrice: number) => void">
+  Updates the maximum price threshold
+</ParamField>
+
+<ParamField path="setSortBy" type="(sortBy: SortOption) => void">
+  Updates the sort order
+</ParamField>
+
+## Filter Logic Implementation
+
+While the component only manages UI state, filter logic typically lives in a selector or component:
+
+```typescript
+// Example filter implementation (not in PizzaFilters component)
+const filteredPizzas = pizzas.filter(pizza => {
+  // Search filter
+  if (filters.search && !pizza.name.toLowerCase().includes(filters.search.toLowerCase())) {
+    return false;
+  }
+  
+  // Category filter
+  if (filters.category !== 'all' && pizza.category !== filters.category) {
+    return false;
+  }
+  
+  // Price filter
+  if (pizza.price > filters.maxPrice) {
+    return false;
+  }
+  
+  return true;
+});
+
+// Sorting
+const sortedPizzas = [...filteredPizzas].sort((a, b) => {
+  switch (filters.sortBy) {
+    case 'name-asc':
+      return a.name.localeCompare(b.name);
+    case 'name-desc':
+      return b.name.localeCompare(a.name);
+    case 'price-asc':
+      return a.price - b.price;
+    case 'price-desc':
+      return b.price - a.price;
+  }
+});
+```
+
+## Accessibility
+
+- **Semantic form controls**: Native `<input>` and `<select>` elements
+- **Label association**: Labels positioned for screen readers
+- **Keyboard navigation**: All controls are keyboard accessible
+- **Focus indicators**: Clear focus rings on all interactive elements
+- **Placeholder text**: Descriptive placeholder for search input
+
+## Performance Considerations
+
+### Debouncing Search
+
+For production, consider debouncing the search input to reduce Redux updates:
+
+```typescript
+import { useState, useEffect } from 'react';
+import { useDebouncedCallback } from 'use-debounce';
+
+const [localSearch, setLocalSearch] = useState(filters.search);
+
+const debouncedSearch = useDebouncedCallback(
+  (value: string) => dispatch(setSearch(value)),
+  300
+);
+
+useEffect(() => {
+  debouncedSearch(localSearch);
+}, [localSearch, debouncedSearch]);
+```
+
+## Complete Example
+
+Full integration with pizza list:
+
+```tsx
+import { useAppSelector } from './store';
+import PizzaFilters from './components/pizza/PizzaFilters';
+import PizzaCard from './components/pizza/PizzaCard';
+
+function PizzaMenuPage() {
+  const { pizzas, filters } = useAppSelector((state) => state.pizza);
+  
+  // Apply filters and sorting
+  const filteredAndSorted = useMemo(() => {
+    let result = pizzas.filter(pizza => {
+      if (filters.search && !pizza.name.toLowerCase().includes(filters.search.toLowerCase())) {
+        return false;
+      }
+      if (filters.category !== 'all' && pizza.category !== filters.category) {
+        return false;
+      }
+      if (pizza.price > filters.maxPrice) {
+        return false;
+      }
+      return true;
+    });
+    
+    // Sort
+    result.sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'name-asc': return a.name.localeCompare(b.name);
+        case 'name-desc': return b.name.localeCompare(a.name);
+        case 'price-asc': return a.price - b.price;
+        case 'price-desc': return b.price - a.price;
+      }
+    });
+    
+    return result;
+  }, [pizzas, filters]);
+  
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <PizzaFilters />
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredAndSorted.map((pizza) => (
+          <PizzaCard key={pizza.id} pizza={pizza} />
+        ))}
+      </div>
+      
+      {filteredAndSorted.length === 0 && (
+        <div className="text-center py-12 text-gray-400">
+          No pizzas match your filters
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Related Components
+
+<CardGroup cols={2}>
+  <Card title="PizzaCard" href="/components/pizza-card" icon="square">
+    Display filtered pizza results
+  </Card>
+  <Card title="Overview" href="/components/overview" icon="book">
+    Component library architecture
+  </Card>
+</CardGroup>
+
+## Source Reference
+
+View the complete implementation: `src/components/pizza/PizzaFilters.tsx:1-82`

@@ -1,0 +1,385 @@
+---
+title: Custom Pizza Form
+description: Create custom pizzas with Zod validation and real-time preview
+---
+
+# Custom Pizza Form
+
+The Custom Pizza Form allows administrators to create new pizzas and add them to the catalog. It features comprehensive validation using Zod, real-time preview, and a polished submission flow.
+
+## Form Schema
+
+Validation is handled by Zod with strict rules to ensure data quality:
+
+```typescript
+const pizzaSchema = z.object({
+  name: z.string().min(3, 'Name must be at least 3 characters'),
+  price: z.number().min(5, 'Price must be at least $5').max(50, 'Price cannot exceed $50'),
+  category: z.enum(['Vegetarian', 'Meat', 'Seafood', 'Spicy']),
+  ingredients: z.string().min(5, 'Please list at least a few ingredients'),
+  imageUrl: z.string().url('Please enter a valid image URL'),
+  isRecommended: z.boolean().optional(),
+});
+
+type PizzaFormValues = z.infer<typeof pizzaSchema>;
+```
+
+### Validation Rules
+
+| Field | Type | Validation | Error Message |
+|-------|------|------------|---------------|
+| `name` | string | Min 3 characters | "Name must be at least 3 characters" |
+| `price` | number | Min $5, Max $50 | "Price must be at least $5" / "Price cannot exceed $50" |
+| `category` | enum | Must be one of 4 options | Type-safe enum |
+| `ingredients` | string | Min 5 characters | "Please list at least a few ingredients" |
+| `imageUrl` | string | Must be valid URL | "Please enter a valid image URL" |
+| `isRecommended` | boolean | Optional | N/A |
+
+<Note>
+The price range of $5-$50 is intentionally set to match the filtering system's max price, ensuring new pizzas are always visible to users.
+</Note>
+
+## Form Setup
+
+The form uses React Hook Form with Zod resolver:
+
+```typescript
+const {
+  register,
+  handleSubmit,
+  watch,
+  formState: { errors }
+} = useForm<PizzaFormValues>({
+  resolver: zodResolver(pizzaSchema),
+  defaultValues: {
+    name: '',
+    category: 'Vegetarian',
+    isRecommended: false,
+    price: 15,
+    ingredients: '',
+    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=2070&auto=format&fit=crop'
+  },
+});
+```
+
+### Default Values
+
+- **Name**: Empty (user must provide)
+- **Category**: `Vegetarian` (safest default)
+- **Price**: $15 (mid-range)
+- **Ingredients**: Empty (user must provide)
+- **Image URL**: High-quality Unsplash placeholder
+- **Recommended**: `false`
+
+<Tip>
+Providing sensible defaults (especially for the image URL) ensures users can quickly create a pizza and see a professional preview even before customizing all fields.
+</Tip>
+
+## Form Fields
+
+### Pizza Name
+
+```tsx
+<input
+  {...register('name')}
+  placeholder="e.g. Vulcano Pepperoni"
+  className={`block w-full px-5 py-4 bg-gray-50 border ${errors.name ? 'border-red-500' : 'border-gray-200'} rounded-3xl`}
+/>
+{errors.name && <p className="text-red-500">{errors.name.message}</p>}
+```
+
+Dynamic border color provides visual feedback when validation fails.
+
+### Price
+
+```tsx
+<input
+  type="number"
+  step="0.01"
+  {...register('price', { valueAsNumber: true })}
+/>
+```
+
+**Key Details**:
+- `type="number"` provides native number input
+- `step="0.01"` allows decimal prices ($14.99)
+- `valueAsNumber: true` ensures the value is a number, not a string
+
+### Category
+
+```tsx
+<select {...register('category')}>
+  <option value="Vegetarian">Vegetarian</option>
+  <option value="Meat">Meat</option>
+  <option value="Seafood">Seafood</option>
+  <option value="Spicy">Spicy</option>
+</select>
+```
+
+Type-safe category selection using the Zod enum.
+
+### Ingredients
+
+```tsx
+<textarea
+  {...register('ingredients')}
+  placeholder="e.g. Tomato sauce, Mozzarella, Pepperoni, Spicy oil"
+  rows={3}
+/>
+```
+
+The ingredients field accepts a comma-separated string. During submission, it's parsed into an array:
+
+```typescript
+ingredients: data.ingredients.split(',').map((i) => i.trim())
+```
+
+This converts `"Tomato, Cheese, Basil"` into `["Tomato", "Cheese", "Basil"]`.
+
+### Image URL
+
+```tsx
+<input
+  {...register('imageUrl')}
+  placeholder="https://images.unsplash.com/..."
+/>
+```
+
+Zod's `.url()` validator ensures only valid URLs are accepted.
+
+### Recommended Flag
+
+```tsx
+<input
+  type="checkbox"
+  id="isRecommended"
+  {...register('isRecommended')}
+/>
+<label htmlFor="isRecommended">
+  Mark as Recommended by the Chef
+</label>
+```
+
+Optional boolean to highlight special pizzas in the catalog.
+
+## Real-Time Preview
+
+The form includes a live preview card that updates as the user types:
+
+```tsx
+const watchedValues = watch();
+
+// Later in the UI:
+<img src={watchedValues.imageUrl || 'default-image.jpg'} />
+<h3>{watchedValues.name || 'Your Pizza Name'}</h3>
+<p>{watchedValues.category} Category</p>
+<div className="price">${watchedValues.price?.toFixed(2) || '0.00'}</div>
+```
+
+The `watch()` hook subscribes to all form fields, triggering a re-render whenever any field changes.
+
+### Preview Features
+
+- **Image**: Displays the URL in real-time (with fallback)
+- **Name**: Shows placeholder "Your Pizza Name" when empty
+- **Price**: Formatted to 2 decimal places
+- **Category**: Displays the selected category
+- **Ingredients**: Shows first 3 ingredients as badges
+
+```tsx
+{(watchedValues.ingredients || 'Tomato, Cheese').split(',').slice(0, 3).map((ing, i) => (
+  <span key={i}>{ing.trim()}</span>
+))}
+```
+
+## Form Submission
+
+The submission flow includes loading states, simulated API delay, and success feedback:
+
+```typescript
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [showSuccess, setShowSuccess] = useState(false);
+
+const onSubmit = async (data: PizzaFormValues) => {
+  setIsSubmitting(true);
+  // Simulate API call
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  
+  const newPizza = {
+    ...data,
+    id: crypto.randomUUID(),
+    ingredients: data.ingredients.split(',').map((i) => i.trim()),
+  };
+
+  dispatch(addPizzaToCatalog(newPizza));
+  setIsSubmitting(false);
+  setShowSuccess(true);
+  
+  setTimeout(() => {
+    navigate('/');
+  }, 2000);
+};
+```
+
+### Submission Steps
+
+1. **Set Loading**: `setIsSubmitting(true)` disables the button
+2. **Simulate API**: 1.5s delay to mimic network request
+3. **Generate ID**: Uses `crypto.randomUUID()` for unique IDs
+4. **Parse Ingredients**: Converts comma-separated string to array
+5. **Dispatch Action**: Adds pizza to Redux store and localStorage
+6. **Show Success**: Displays success overlay
+7. **Navigate**: Returns to dashboard after 2s
+
+<Note>
+The simulated API delay provides realistic UX feedback. In production, replace with actual API call:
+```typescript
+const response = await fetch('/api/pizzas', {
+  method: 'POST',
+  body: JSON.stringify(newPizza),
+});
+```
+</Note>
+
+## Redux Integration
+
+The `addPizzaToCatalog` action adds the pizza to both the in-memory state and localStorage:
+
+```typescript
+addPizzaToCatalog: (state, action: PayloadAction<Pizza>) => {
+  state.pizzas.push(action.payload);
+  const saved = localStorage.getItem('custom_pizzas');
+  const customPizzas = saved ? JSON.parse(saved) : [];
+  localStorage.setItem('custom_pizzas', JSON.stringify([...customPizzas, action.payload]));
+}
+```
+
+Custom pizzas are stored separately in `custom_pizzas` but merged with the default catalog on load:
+
+```typescript
+pizzas: [...pizzasData, ...loadCustomPizzas()] as Pizza[]
+```
+
+## UI States
+
+### Default State
+
+Form is interactive, button is enabled:
+
+```tsx
+<button type="submit" disabled={isSubmitting}>
+  CREATE PIZZA
+</button>
+```
+
+### Submitting State
+
+Button shows loading spinner:
+
+```tsx
+{isSubmitting && (
+  <div className="absolute inset-0 flex items-center justify-center">
+    <Loader2 className="animate-spin" size={24} />
+  </div>
+)}
+```
+
+### Success State
+
+Overlay covers the form:
+
+```tsx
+{showSuccess && (
+  <motion.div className="absolute inset-0 z-10 bg-white/95">
+    <CheckCircle2 size={80} className="text-green-500" />
+    <h2>Success!</h2>
+    <p>Your pizza has been added to the catalog.</p>
+  </motion.div>
+)}
+```
+
+## Error Handling
+
+Validation errors are displayed inline below each field:
+
+```tsx
+{errors.name && (
+  <p className="text-red-500 text-[10px] font-bold uppercase ml-2">
+    {errors.name.message}
+  </p>
+)}
+```
+
+Field borders turn red when invalid:
+
+```tsx
+border ${errors.name ? 'border-red-500' : 'border-gray-200'}
+```
+
+## Accessibility
+
+- **Labels**: Every input has a corresponding label
+- **Error Messages**: Validation errors are announced to screen readers
+- **Focus States**: Custom focus rings with `focus:ring-2 focus:ring-orange-500/20`
+- **Disabled State**: Submit button is properly disabled during submission
+- **Checkbox Label**: Clicking the label toggles the checkbox
+
+```tsx
+<label htmlFor="isRecommended" className="cursor-pointer">
+  Mark as Recommended by the Chef
+</label>
+```
+
+## Navigation
+
+Back button returns to dashboard:
+
+```tsx
+<button onClick={() => navigate('/')}>
+  <ArrowLeft size={16} />
+  Back to Dashboard
+</button>
+```
+
+## Animation
+
+Framer Motion provides subtle animations:
+
+```tsx
+<motion.div
+  initial={{ opacity: 0, scale: 0.95 }}
+  animate={{ opacity: 1, scale: 1 }}
+>
+  {/* Form content */}
+</motion.div>
+```
+
+## Best Practices
+
+<Tip>
+**Image URL Tips for Users**:
+- Use high-quality images (Unsplash, Pexels)
+- Ensure images are landscape/square aspect ratio
+- Test the URL in the preview before submitting
+- Recommended resolution: 1920x1080 or higher
+</Tip>
+
+## Testing Checklist
+
+- [ ] Submit with empty name (should fail)
+- [ ] Submit with price < $5 (should fail)
+- [ ] Submit with price > $50 (should fail)
+- [ ] Submit with invalid URL (should fail)
+- [ ] Submit with ingredients < 5 chars (should fail)
+- [ ] Submit valid form (should succeed)
+- [ ] Check preview updates in real-time
+- [ ] Verify pizza appears in catalog after creation
+- [ ] Confirm custom pizza persists after page reload
+- [ ] Test all 4 category options
+
+## Related Files
+
+- `src/pages/AddPizza.tsx:11-18` - Zod validation schema
+- `src/pages/AddPizza.tsx:28-43` - Form setup and defaults
+- `src/pages/AddPizza.tsx:47-65` - Submission logic
+- `src/store/pizzaSlice.ts:70-75` - addPizzaToCatalog action

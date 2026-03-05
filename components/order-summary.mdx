@@ -1,0 +1,549 @@
+---
+title: OrderSummary Component
+description: Real-time order management with quantity controls, discount calculation, and checkout functionality
+---
+
+## Overview
+
+The `OrderSummary` component provides a comprehensive order management interface with real-time updates, quantity adjustments, discount calculations, and order confirmation. It features smooth animations, empty states, success states, and integrates deeply with Redux for state management.
+
+**Location**: `src/components/order/OrderSummary.tsx`
+
+## Features
+
+- **Real-time order updates**: Instant reflection of cart changes
+- **Quantity controls**: Inline increment/decrement with visual feedback
+- **Dynamic pricing**: Automatic calculation of subtotals, discounts, and totals
+- **Remove items**: Delete items with smooth exit animations
+- **Bulk discount system**: Automatic discounts applied to line items
+- **Order confirmation**: Async checkout with loading states
+- **Success animation**: Post-order confirmation screen
+- **Empty state**: Friendly message when cart is empty
+- **Sticky positioning**: Stays visible while scrolling
+
+## Props
+
+This component has no props. It reads order state directly from Redux.
+
+## Redux State
+
+### State Structure
+
+```typescript
+interface OrderItem {
+  pizza: Pizza;
+  quantity: number;
+  originalLinePrice: number;    // price * quantity before discounts
+  discountAmount: number;        // total discount for this line
+  finalLineTotal: number;        // after discount
+}
+
+interface Order {
+  id: string;
+  items: OrderItem[];
+  subtotal: number;
+  totalDiscount: number;
+  finalTotal: number;
+  timestamp: string;
+}
+
+interface OrderState {
+  currentOrder: OrderItem[];
+  orderHistory: Order[];
+  loading: boolean;
+}
+```
+
+### Redux Integration
+
+```typescript
+import { useAppDispatch, useAppSelector } from '../../store/index.ts';
+import { 
+  updateQuantity, 
+  removeFromOrder, 
+  addOrderToHistory, 
+  setLoading 
+} from '../../store/orderSlice.ts';
+
+const dispatch = useAppDispatch();
+const { currentOrder, loading } = useAppSelector((state) => state.order);
+```
+
+## Usage Example
+
+```tsx
+import OrderSummary from './components/order/OrderSummary';
+
+function CheckoutPage() {
+  return (
+    <div className="container mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main content */}
+      <div className="lg:col-span-2">
+        {/* Pizza catalog */}
+      </div>
+      
+      {/* Sticky order summary */}
+      <div className="lg:col-span-1">
+        <OrderSummary />
+      </div>
+    </div>
+  );
+}
+```
+
+## Component Structure
+
+### Container
+
+Sticky card with glass morphism styling:
+
+```tsx
+<div className="bg-white/40 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl overflow-hidden sticky top-24">
+  {/* Header */}
+  {/* Content */}
+</div>
+```
+
+**Sticky Behavior**:
+- `sticky top-24`: Sticks to viewport 24px from top when scrolling
+- Useful for keeping order summary visible
+
+### Header Section
+
+Gradient header with item count:
+
+```tsx
+<div className="bg-linear-to-r from-orange-500 to-red-600 p-6">
+  <div className="flex items-center justify-between text-white">
+    <div className="flex items-center gap-3">
+      <CheckCircle className="h-6 w-6 opacity-80" />
+      <h2 className="text-xl font-black uppercase tracking-wider">Your Order</h2>
+    </div>
+    <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold">
+      {currentOrder.length} Items
+    </span>
+  </div>
+</div>
+```
+
+## Component States
+
+### Success State
+
+Shown after successful order confirmation:
+
+```tsx
+{showSuccess ? (
+  <motion.div 
+    initial={{ opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 1, scale: 1 }}
+    className="py-12 text-center"
+  >
+    <div className="bg-green-100 text-green-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+      <CheckCircle size={40} />
+    </div>
+    <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter mb-2">
+      Order Confirmed!
+    </h3>
+    <p className="text-gray-500 text-sm mb-6">
+      Your delicious pizza is being prepared. Check Analytics to see your order history!
+    </p>
+    <button 
+      onClick={() => setShowSuccess(false)}
+      className="text-orange-600 font-bold uppercase tracking-widest text-[10px] hover:underline"
+    >
+      Start New Order
+    </button>
+  </motion.div>
+) : /* ... */}
+```
+
+### Empty State
+
+Shown when cart has no items:
+
+```tsx
+{currentOrder.length === 0 ? (
+  <div className="py-12 text-center">
+    <CreditCard className="mx-auto h-16 w-16 text-gray-200 mb-4" strokeWidth={1} />
+    <p className="text-gray-400 font-medium">Your basket is hungry...</p>
+    <p className="text-sm text-gray-400">Add some delicious pizzas!</p>
+  </div>
+) : /* ... */}
+```
+
+### Active State
+
+Shown when cart has items:
+
+```tsx
+<div className="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+  <AnimatePresence mode="popLayout">
+    {currentOrder.map((item: OrderItem) => (
+      <motion.div
+        key={item.pizza.id}
+        layout
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+      >
+        {/* Item content */}
+      </motion.div>
+    ))}
+  </AnimatePresence>
+</div>
+```
+
+## Order Item Display
+
+Each order item shows pizza details with controls:
+
+```tsx
+<motion.div className="group flex items-center justify-between gap-4 p-4 bg-white/60 hover:bg-white transition-colors rounded-2xl border border-transparent hover:border-orange-100 shadow-sm grow">
+  {/* Pizza details */}
+  <div className="grow">
+    <h4 className="font-bold text-gray-800 leading-tight mb-1 group-hover:text-orange-600 transition-colors">
+      {item.pizza.name}
+    </h4>
+    <div className="flex items-center gap-2">
+      {item.discountAmount > 0 ? (
+        <>
+          <span className="text-xs line-through text-gray-400">
+            ${item.originalLinePrice.toFixed(2)}
+          </span>
+          <span className="text-sm font-black text-green-600 uppercase tracking-tighter">
+            Sale: ${item.finalLineTotal.toFixed(2)} 
+            <span className="ml-1 text-[10px]">(-${item.discountAmount.toFixed(2)})</span>
+          </span>
+        </>
+      ) : (
+        <span className="text-sm font-bold text-gray-600">
+          ${item.finalLineTotal.toFixed(2)}
+        </span>
+      )}
+    </div>
+  </div>
+
+  {/* Quantity and delete controls */}
+  <div className="flex items-center gap-3">
+    {/* Quantity control */}
+    {/* Delete button */}
+  </div>
+</motion.div>
+```
+
+## Quantity Controls
+
+Inline increment/decrement buttons:
+
+```tsx
+<div className="flex items-center bg-gray-50 border border-gray-100 rounded-xl p-1 shadow-inner">
+  <button
+    onClick={() => dispatch(updateQuantity({ 
+      pizzaId: item.pizza.id, 
+      quantity: Math.max(1, item.quantity - 1) 
+    }))}
+    className="p-1 hover:text-orange-500 transition-colors"
+  >
+    <Minus size={14} />
+  </button>
+  
+  <span className="w-8 text-center text-sm font-black text-gray-800 tabular-nums">
+    {item.quantity}
+  </span>
+  
+  <button
+    onClick={() => dispatch(updateQuantity({ 
+      pizzaId: item.pizza.id, 
+      quantity: item.quantity + 1 
+    }))}
+    className="p-1 hover:text-orange-500 transition-colors"
+  >
+    <Plus size={14} />
+  </button>
+</div>
+```
+
+**Behavior**:
+- Minimum quantity: 1 (enforced by `Math.max(1, quantity - 1)`)
+- Dispatches `updateQuantity` action on click
+- Tabular numbers for consistent width
+
+## Delete Button
+
+Remove item from order with fade-in on hover:
+
+```tsx
+<button
+  onClick={() => dispatch(removeFromOrder(item.pizza.id))}
+  className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+>
+  <Trash2 size={18} />
+</button>
+```
+
+**Behavior**:
+- Hidden by default (`opacity-0`)
+- Fades in on item hover (`group-hover:opacity-100`)
+- Red color on hover for destructive action
+
+## Price Calculations
+
+Automatic calculation of order totals:
+
+```typescript
+const subtotal = currentOrder.reduce(
+  (acc: number, item: OrderItem) => acc + item.originalLinePrice, 
+  0
+);
+
+const totalDiscount = currentOrder.reduce(
+  (acc: number, item: OrderItem) => acc + item.discountAmount, 
+  0
+);
+
+const finalTotal = subtotal - totalDiscount;
+```
+
+### Price Display
+
+```tsx
+<div className="mt-8 pt-6 border-t border-gray-100 space-y-3">
+  {/* Subtotal */}
+  <div className="flex justify-between text-gray-500 text-sm">
+    <span>Subtotal</span>
+    <span className="font-medium">${subtotal.toFixed(2)}</span>
+  </div>
+  
+  {/* Discount (if applicable) */}
+  {totalDiscount > 0 && (
+    <div className="flex justify-between text-green-600 text-sm bg-green-50 p-3 rounded-xl border border-green-100 group animate-pulse">
+      <span className="flex items-center gap-2 font-bold uppercase tracking-wider text-[10px]">
+        Special Promo (Bulk Discount)
+      </span>
+      <span className="font-black text-lg">-${totalDiscount.toFixed(2)}</span>
+    </div>
+  )}
+
+  {/* Grand Total */}
+  <div className="flex justify-between items-center pt-2">
+    <span className="text-gray-900 font-black uppercase text-xs tracking-widest">
+      Grand Total
+    </span>
+    <span className="text-3xl font-black text-gray-900 drop-shadow-sm tabular-nums">
+      ${finalTotal.toFixed(2)}
+    </span>
+  </div>
+</div>
+```
+
+## Order Confirmation
+
+Async checkout process with loading state:
+
+```typescript
+const handleConfirm = async () => {
+  if (currentOrder.length === 0) return;
+  
+  // Set loading state
+  dispatch(setLoading(true));
+  
+  // Simulate API call
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // Create order object
+  const newOrder: Order = {
+    id: crypto.randomUUID(),
+    items: [...currentOrder],
+    subtotal,
+    totalDiscount,
+    finalTotal,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Add to history and clear cart
+  dispatch(addOrderToHistory(newOrder));
+  dispatch(setLoading(false));
+  setShowSuccess(true);
+};
+```
+
+### Confirm Button
+
+```tsx
+<button
+  onClick={handleConfirm}
+  disabled={loading}
+  className="w-full mt-6 group flex items-center justify-center gap-3 bg-gray-900 hover:bg-orange-500 text-white font-black py-4 rounded-2xl transition-all duration-300 transform active:scale-95 shadow-xl shadow-gray-200 hover:shadow-orange-200 disabled:opacity-70 disabled:cursor-not-allowed"
+>
+  {loading ? (
+    <>
+      <Loader2 className="animate-spin h-5 w-5" />
+      <span>PROCESSING...</span>
+    </>
+  ) : (
+    <>
+      <span>CONFIRM ORDER</span>
+      <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+    </>
+  )}
+</button>
+```
+
+## State Management Details
+
+### Local State
+
+<ParamField path="showSuccess" type="boolean">
+  Controls visibility of success screen after order confirmation
+</ParamField>
+
+```typescript
+const [showSuccess, setShowSuccess] = useState(false);
+```
+
+### Success State Reset
+
+Automatically hides success screen when new items added:
+
+```typescript
+useEffect(() => {
+  let timeout: ReturnType<typeof setTimeout>;
+  if (currentOrder.length > 0 && showSuccess) {
+    timeout = setTimeout(() => setShowSuccess(false), 0);
+  }
+  return () => clearTimeout(timeout);
+}, [currentOrder.length, showSuccess]);
+```
+
+## Animations
+
+### Item Enter/Exit
+
+Framer Motion handles smooth transitions:
+
+```tsx
+<AnimatePresence mode="popLayout">
+  {currentOrder.map((item: OrderItem) => (
+    <motion.div
+      key={item.pizza.id}
+      layout                              // Smooth reordering
+      initial={{ opacity: 0, x: -20 }}   // Enter from left
+      animate={{ opacity: 1, x: 0 }}     // Fade in
+      exit={{ opacity: 0, scale: 0.95 }} // Scale down on exit
+    >
+      {/* Content */}
+    </motion.div>
+  ))}
+</AnimatePresence>
+```
+
+**Animation Features**:
+- `mode="popLayout"`: Items animate in sequence
+- `layout`: Automatic position transitions when items reorder
+- Slide in from left on add
+- Scale down and fade out on remove
+
+### Success Screen Animation
+
+```tsx
+<motion.div 
+  initial={{ opacity: 0, scale: 0.9 }}
+  animate={{ opacity: 1, scale: 1 }}
+>
+```
+
+## Accessibility
+
+- **Semantic buttons**: All actions use `<button>` elements
+- **Disabled state**: Loading state properly disables button
+- **Icon labels**: Icons paired with text labels
+- **Keyboard navigation**: All controls keyboard accessible
+- **Screen reader support**: Meaningful text content
+- **Focus states**: Clear focus indicators on interactive elements
+
+## Scrolling Behavior
+
+Long order lists scroll independently:
+
+```css
+max-h-[400px] overflow-y-auto pr-2 custom-scrollbar
+```
+
+- Maximum height: 400px
+- Vertical scroll when exceeded
+- Right padding to prevent scrollbar overlap
+- Custom scrollbar styling via CSS class
+
+## Visual Design
+
+### Glass Morphism Container
+
+```css
+bg-white/40 backdrop-blur-xl border border-white/20 shadow-2xl
+```
+
+### Gradient Header
+
+```css
+bg-linear-to-r from-orange-500 to-red-600
+```
+
+### Hover Effects
+
+```css
+bg-white/60 hover:bg-white transition-colors
+group-hover:text-orange-600
+```
+
+## Integration Example
+
+Complete page layout with sticky sidebar:
+
+```tsx
+import { useAppSelector } from './store';
+import PizzaCard from './components/pizza/PizzaCard';
+import OrderSummary from './components/order/OrderSummary';
+
+function OrderPage() {
+  const pizzas = useAppSelector((state) => state.pizza.pizzas);
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Pizza catalog */}
+          <div className="lg:col-span-2">
+            <h1 className="text-3xl font-black mb-8">Order Now</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {pizzas.map((pizza) => (
+                <PizzaCard key={pizza.id} pizza={pizza} />
+              ))}
+            </div>
+          </div>
+          
+          {/* Sticky order summary */}
+          <div className="lg:col-span-1">
+            <OrderSummary />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+## Related Components
+
+<CardGroup cols={2}>
+  <Card title="PizzaCard" href="/components/pizza-card" icon="square">
+    Add items to the order
+  </Card>
+  <Card title="Analytics" href="/components/analytics" icon="chart-bar">
+    View order history and statistics
+  </Card>
+</CardGroup>
+
+## Source Reference
+
+View the complete implementation: `src/components/order/OrderSummary.tsx:1-197`
