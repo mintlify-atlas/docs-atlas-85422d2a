@@ -1,0 +1,97 @@
+{
+  "projectType": "frontend",
+  "projectName": "Pizza Chef Frontend",
+  "projectDescription": "A premium React SPA for ordering pizzas with Redux state management, advanced filtering, bulk discounts, and analytics.",
+  "theme": "palm",
+  "primaryColor": "#ea580c",
+  "lightColor": "#fb923c",
+  "darkColor": "#c2410c",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "installation"]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/state-management",
+              "architecture/routing",
+              "architecture/data-persistence"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/overview",
+              "components/pizza-card",
+              "components/pizza-filters",
+              "components/order-summary",
+              "components/analytics"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/filtering-and-search",
+              "features/discount-logic",
+              "features/custom-pizza-form",
+              "features/analytics-dashboard"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/setup",
+              "development/testing",
+              "development/building"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Redux Store",
+            "pages": [
+              "api/pizza-slice",
+              "api/order-slice"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types/pizza",
+              "api/types/order"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Redux Toolkit state management with localStorage persistence",
+    "Advanced filtering, sorting, and search functionality",
+    "Automatic bulk discount calculation (10% off for 3+ items)",
+    "Custom pizza creation with React Hook Form and Zod validation",
+    "Analytics dashboard with Recharts visualizations",
+    "Responsive design with Tailwind CSS and Framer Motion animations"
+  ],
+  "publicApiSurface": [
+    "pizzaSlice.setSearch(search: string)",
+    "pizzaSlice.setCategory(category: string)",
+    "pizzaSlice.setMaxPrice(price: number)",
+    "pizzaSlice.setSortBy(sortBy: SortOption)",
+    "pizzaSlice.addPizzaToCatalog(pizza: Pizza)",
+    "orderSlice.addToOrder({ pizza: Pizza, quantity: number })",
+    "orderSlice.removeFromOrder(pizzaId: string)",
+    "orderSlice.updateQuantity({ pizzaId: string, quantity: number })",
+    "orderSlice.clearOrder()",
+    "orderSlice.addOrderToHistory(order: Order)"
+  ]
+}
